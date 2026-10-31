@@ -215,13 +215,13 @@ class Handler(BaseHTTPRequestHandler):
                     main = midi.pick_main_track(tracks)
                     if not main:
                         return self._json({"error": "MIDI 里没有音符"}, 400)
-                    seq = [[n["midi"], n["dur"]] for n in main["notes"]]
+                    seq = [[n["midi"], n["dur"], n.get("start", 0)] for n in main["notes"]]
                     meta["kind"] = "midi"
                     meta["tracks"] = len(tracks)
                     meta["main"] = tracks.index(main)
                     track_info = [
                         {"name": f"轨道 {i+1}", "count": len(t["notes"]),
-                         "notes": [[n["midi"], n["dur"]] for n in t["notes"]]}
+                         "notes": [[n["midi"], n["dur"], n.get("start", 0)] for n in t["notes"]]}
                         for i, t in enumerate(tracks)
                     ]
                 else:
@@ -229,13 +229,13 @@ class Handler(BaseHTTPRequestHandler):
                     main = musicxml.pick_main_track(tracks)
                     if not main:
                         return self._json({"error": "谱面里没有音符"}, 400)
-                    seq = [[n["midi"], n["dur"]] for n in main["notes"]]
+                    seq = [[n["midi"], n["dur"], n.get("start", 0)] for n in main["notes"]]
                     meta["kind"] = "musicxml"
                     meta["tracks"] = len(tracks)
                     meta["main"] = tracks.index(main)
                     track_info = [
                         {"name": t["name"], "count": len(t["notes"]),
-                         "notes": [[n["midi"], n["dur"]] for n in t["notes"]]}
+                         "notes": [[n["midi"], n["dur"], n.get("start", 0)] for n in t["notes"]]}
                         for t in tracks
                     ]
             except Exception as e:
