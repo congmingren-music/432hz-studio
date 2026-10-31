@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """432Hz 工作室 · 渲染引擎
 
 参数化的采样渲染核心，供 HTTP 服务调用。
@@ -86,7 +86,11 @@ BUILTIN = {
         # 谐波纯度实测（2026-10-31）：43/60/79/86 四个采样的最强成分不在整数倍泛音上，
         # 技术上会产生金属感；但 A/B 试听后用户认为「原采样更好听」——变调升上去会变薄，
         # 比金属感更难受。所以默认不排除，需要时把 key 加进 avoid 再试。
-        "avoid": set(),
+        # 高音区策略：经 A/B 试听，用户选定「排除 79/86、用 74 升调补厚」这一版。
+        # 86 降调虽然谐波能量更整齐（G5 75% vs 28%），但听感被判定「方向不对」，默认关闭。
+        "avoid": {"79", "86"},
+        "high_key": None,
+        "high_from": 76,
         "seek": None,
     },
     "xiao": {
@@ -317,6 +321,8 @@ def _resolve_source(timbre):
             "pattern": builtin["pattern"],
             "seek": builtin["seek"],
             "avoid": builtin.get("avoid", set()),
+            "high_key": builtin.get("high_key"),
+            "high_from": builtin.get("high_from", 999),
             "samples": [{"key": k, "hz": v} for k, v in builtin["hz"].items()],
         }
     users = user_sources()
@@ -408,27 +414,8 @@ def render_piece(timbre, piece, tempo=1.0, ring=2.0, on_progress=None):
     for i, n in enumerate(notes):
         midi, dur = int(n[0]), float(n[1])
         start_t = float(n[2]) if has_start else cursor
-        s = _nearest(src["samples"], midi, src.get("avoid", ()))
-        target = 432.0 * 2 ** ((midi - 69) / 12.0)
-        rate = target / s["hz"]
         seg_dur = max(0.9, dur * 1.7) * (1.0 / tempo) + ring * 0.35
-
-        f = _pick_sample_file(src, s["key"])
-        if not f:
-            raise FileNotFoundError(s["key"])
-        out = os.path.join(tmp_dir, f"n{i}.wav")
-        fade = min(0.6, seg_dur * 0.5)
-        parts = [f"aresample={SR}", f"asetrate={int(round(SR * rate))}", f"aresample={SR}"]
-        parts += _tone_filters(midi)
-        parts += [f"atrim=0:{seg_dur:.3f}", f"afade=t=out:st={max(0.0, seg_dur - fade):.3f}:d={fade:.3f}"]
-        af = ",".join(parts)
-        cmd = [FFMPEG, "-hide_banner", "-loglevel", "error", "-y"]
-        if src["seek"]:
-            cmd += ["-ss", str(src["seek"])]
-        cmd += ["-i", f, "-af", af, "-ac", "1", "-ar", str(SR), "-c:a", "pcm_s16le", out]
-        subprocess.run(cmd, check=True, capture_output=True)
-        _, sig = read_wav(out)
-        os.remove(out)
+        sig = _note_audio(src, midi, seg_dur, f"{i}", tmp_dir)
 
         i0 = int(start_t * sc * SR)
         i1 = min(i0 + sig.size, buf.size)
@@ -459,27 +446,57 @@ def render_piece(timbre, piece, tempo=1.0, ring=2.0, on_progress=None):
     return path, len(pcm) / SR
 
 
-def _note_audio(src, midi, dur, idx, tmp_dir):
-    """渲染单个音，返回 numpy 片段。"""
-    s = _nearest(src["samples"], midi, src.get("avoid", ()))
+def _render_one(src, sample, midi, dur, tmp_dir, tag):
+    """用指定采样渲染一个音（单层）。"""
     target = 432.0 * 2 ** ((midi - 69) / 12.0)
-    rate = target / s["hz"]
-    f = _pick_sample_file(src, s["key"])
+    rate = target / sample["hz"]
+    f = _pick_sample_file(src, sample["key"])
     if not f:
-        raise FileNotFoundError(s["key"])
-    out = os.path.join(tmp_dir, f"n{idx}.wav")
+        raise FileNotFoundError(sample["key"])
+    out = os.path.join(tmp_dir, f"{tag}.wav")
     fade = min(0.6, dur * 0.5)
     parts = [f"aresample={SR}", f"asetrate={int(round(SR * rate))}", f"aresample={SR}"]
     parts += _tone_filters(midi)
     parts += [f"atrim=0:{dur:.3f}", f"afade=t=out:st={max(0.0, dur - fade):.3f}:d={fade:.3f}"]
-    af = ",".join(parts)
     cmd = [FFMPEG, "-hide_banner", "-loglevel", "error", "-y"]
     if src["seek"]:
         cmd += ["-ss", str(src["seek"])]
-    cmd += ["-i", f, "-af", af, "-ac", "1", "-ar", str(SR), "-c:a", "pcm_s16le", out]
+    cmd += ["-i", f, "-af", ",".join(parts), "-ac", "1", "-ar", str(SR), "-c:a", "pcm_s16le", out]
     subprocess.run(cmd, check=True, capture_output=True)
     _, sig = read_wav(out)
     os.remove(out)
+    return sig
+
+
+# 八度叠加：高音区把「主层采样」与「更低八度的干净采样升调」叠起来，
+# 主层保音色，辅层补被升调削掉的谐波厚度。gain=0 关闭。
+DUAL = {
+    "above_midi": 74,      # >= 这个 MIDI 才叠加
+    "gain": 0.5,           # 辅层音量（相对主层）
+    "aux_lower": 5,        # 辅层采样至少比主层低这么多半音（逼它取更低八度）
+}
+
+
+def _note_audio(src, midi, dur, idx, tmp_dir):
+    """渲染单个音，返回 numpy 片段。高音区强制用指定采样降调，并做八度叠加补厚度。"""
+    s = None
+    hk = src.get("high_key")
+    if hk and midi >= src.get("high_from", 999):
+        for x in src["samples"]:
+            if str(x["key"]) == str(hk):
+                smidi = midi_of(x["hz"])
+                s = {"key": x["key"], "hz": x["hz"], "smidi": smidi, "diff": midi - smidi}
+                break
+    if s is None:
+        s = _nearest(src["samples"], midi, src.get("avoid", ()))
+    sig = _render_one(src, s, midi, dur, tmp_dir, f"n{idx}")
+    if DUAL.get("gain") and midi >= DUAL["above_midi"]:
+        lower = [x for x in src["samples"] if midi_of(x["hz"]) <= s["smidi"] - float(DUAL["aux_lower"])]
+        if lower:
+            s2 = _nearest(lower, midi)
+            sig2 = _render_one(src, s2, midi, dur, tmp_dir, f"n{idx}a")
+            n = min(sig.size, sig2.size)
+            sig = sig[:n] + sig2[:n] * float(DUAL["gain"])
     return sig
 
 
