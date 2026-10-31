@@ -62,7 +62,9 @@
   .log{font-size:11.5px;color:var(--ink2);margin-top:8px;min-height:16px;white-space:pre-wrap}
   .chk{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ink2);cursor:pointer;user-select:none}
   .chk input{accent-color:var(--ink);width:14px;height:14px}
-  .sec{border:1px solid var(--rule);border-radius:2px;padding:7px 8px;margin-bottom:6px;background:#fff}
+  .sec{border:1px solid var(--rule);border-radius:2px;padding:7px 8px;margin-bottom:6px;background:#fff;cursor:grab}
+  .sec.drag{opacity:.35}
+  .sec.over{outline:2px dashed var(--tint1);outline-offset:-2px}
   .sec .line{display:flex;gap:5px;margin-bottom:4px;align-items:center}
   .sec select,.sec input{font:inherit;font-size:11px;padding:3px 4px;border:1px solid var(--rule);border-radius:2px;background:#fff;color:var(--ink);min-width:0}
   .sec select{flex:1}
@@ -361,6 +363,24 @@
     }
     sections.forEach(function(s, i){
       var d = el('div', 'sec');
+      d.draggable = true;
+      d.ondragstart = function(e){
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', String(i));
+        d.classList.add('drag');
+      };
+      d.ondragend = function(){ d.classList.remove('drag'); };
+      d.ondragover = function(e){ e.preventDefault(); e.dataTransfer.dropEffect = 'move'; d.classList.add('over'); };
+      d.ondragleave = function(){ d.classList.remove('over'); };
+      d.ondrop = function(e){
+        e.preventDefault();
+        d.classList.remove('over');
+        var from = parseInt(e.dataTransfer.getData('text/plain'), 10);
+        if (isNaN(from) || from === i || from < 0 || from >= sections.length) return;
+        var moved = sections.splice(from, 1)[0];
+        sections.splice(i, 0, moved);
+        renderSections();
+      };
 
       var l1 = el('div', 'line');
       var selK = document.createElement('select');
@@ -449,7 +469,7 @@
 
       box.appendChild(d);
     });
-    $('arrangeHint').textContent = '共 ' + sections.length + ' 段 · 顺序即时间顺序';
+    $('arrangeHint').textContent = '共 ' + sections.length + ' 段 · 顺序即时间顺序 · 拖动卡片可调整顺序';
   }
 
   $('useArrange').onchange = function(){
