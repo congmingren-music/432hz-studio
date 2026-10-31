@@ -477,6 +477,8 @@ def _render_one(src, sample, midi, dur, tmp_dir, tag):
         raise FileNotFoundError(sample["key"])
     out = os.path.join(tmp_dir, f"{tag}.wav")
     fade = min(0.6, dur * 0.5)
+    # per-key 起音裁剪：某些采样的前几百毫秒是宽带撞击瞬态（听感=金属铃），跳过后音色干净得多
+    seek = (src.get("seek_map") or {}).get(str(sample["key"]), src.get("seek"))
     parts = [f"aresample={SR}", f"asetrate={int(round(SR * rate))}", f"aresample={SR}"]
     # 升调超过阈值时切掉混叠带
     if LOWPASS.get("on") and rate > LOWPASS["from_rate"]:
@@ -488,8 +490,8 @@ def _render_one(src, sample, midi, dur, tmp_dir, tag):
               "afade=t=in:st=0:d=0.008",
               f"afade=t=out:st={max(0.0, dur - fade):.3f}:d={fade:.3f}"]
     cmd = [FFMPEG, "-hide_banner", "-loglevel", "error", "-y"]
-    if src["seek"]:
-        cmd += ["-ss", str(src["seek"])]
+    if seek:
+        cmd += ["-ss", str(seek)]
     cmd += ["-i", f, "-af", ",".join(parts), "-ac", "1", "-ar", str(SR), "-c:a", "pcm_s16le", out]
     subprocess.run(cmd, check=True, capture_output=True)
     _, sig = read_wav(out)
