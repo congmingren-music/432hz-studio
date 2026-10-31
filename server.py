@@ -23,6 +23,7 @@ from urllib.parse import urlparse, unquote, parse_qs
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import render_api as R  # noqa: E402
 import musicxml  # noqa: E402
+import midi  # noqa: E402
 
 PORT = int(os.environ.get("STUDIO_PORT", "8770"))
 TOKEN = os.environ.get("ACCESS_TOKEN", "").strip()
@@ -181,8 +182,8 @@ class Handler(BaseHTTPRequestHandler):
                 with open(dst, "wb") as out:
                     out.write(raw)
                 try:
-                    hz, midi = R.analyze_upload(dst)
-                    samples.append({"file": fn, "hz": round(hz, 2), "midi": midi})
+                    hz, midi_no = R.analyze_upload(dst)
+                    samples.append({"file": fn, "hz": round(hz, 2), "midi": midi_no})
                 except Exception as e:
                     errors.append(f"{fn}: {str(e)[:60]}")
             if not samples:
@@ -196,20 +197,48 @@ class Handler(BaseHTTPRequestHandler):
             raw_b64 = str(body.get("data", ""))
             if not raw_b64:
                 return self._json({"error": "缺少文件内容"}, 400)
-            tmp = os.path.join(R.OUT_DIR, "_score_import.xml")
+            try:
+                raw = base64.b64decode(raw_b64)
+            except Exception:
+                return self._json({"error": "文件内容解码失败"}, 400)
+
+            fname = str(body.get("name", "")).lower()
+            track_info = []
+            is_midi = raw[:4] == b"MThd" or fname.endswith((".mid", ".midi"))
+            tmp = os.path.join(R.OUT_DIR, "_score_import.mid" if is_midi else "_score_import.xml")
+
             try:
                 with open(tmp, "wb") as f:
-                    f.write(base64.b64decode(raw_b64))
-                notes, meta = musicxml.parse_musicxml(tmp)
+                    f.write(raw)
+                if is_midi:
+                    tracks, meta = midi.parse_midi(tmp)
+                    main = midi.pick_main_track(tracks)
+                    if not main:
+                        return self._json({"error": "MIDI 里没有音符"}, 400)
+                    seq = [[n["midi"], n["dur"]] for n in main["notes"]]
+                    meta["kind"] = "midi"
+                    meta["tracks"] = len(tracks)
+                    track_info = [{"name": f"轨道 {i+1}", "count": len(t["notes"])}
+                                  for i, t in enumerate(tracks)]
+                else:
+                    tracks, meta = musicxml.parse_musicxml_tracks(tmp)
+                    main = musicxml.pick_main_track(tracks)
+                    if not main:
+                        return self._json({"error": "谱面里没有音符"}, 400)
+                    seq = [[n["midi"], n["dur"]] for n in main["notes"]]
+                    meta["kind"] = "musicxml"
+                    meta["tracks"] = len(tracks)
+                    track_info = [{"name": t["name"], "count": len(t["notes"])} for t in tracks]
             except Exception as e:
                 return self._json({"error": f"解析失败：{str(e)[:160]}"}, 400)
             finally:
                 if os.path.exists(tmp):
                     os.remove(tmp)
-            seq = [[n["midi"], n["dur"]] for n in notes if not n["rest"] and n.get("midi") is not None]
+
             if not seq:
                 return self._json({"error": "解析不出音符（可能是休止或格式不支持）"}, 400)
-            return self._json({"notes": seq, "meta": meta})
+            return self._json({"notes": seq, "meta": meta,
+                               "tracks": track_info})
 
         if p == "/api/pack_remove":
             name = re.sub(r"[^\w\-]", "_", str(body.get("id", "")))
