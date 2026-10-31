@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE score-partwise PUBLIC "-//Recordare//DTD MusicXML 3.1 Partwise//EN" "http://www.musicxml.org/dtds/partwise.dtd">
+<score-partwise version="3.1">
+  <work><work-title>双声部测试</work-title></work>
+  <part-list>
+    <score-part id="P1"><part-name>Melody</part-name></score-part>
+    <score-part id="P2"><part-name>Bass</part-name></score-part>
+  </part-list>
+  <part id="P1">
+    <measure number="1">
+      <attributes>
+        <divisions>4</divisions>
+        <time><beats>4</beats><beat-type>4</beat-type></time>
+      </attributes>
+      <direction><direction-type>
+        <metronome><beat-unit>quarter</beat-unit><per-minute>120</per-minute></metronome>
+      </direction-type><sound tempo="120"/></direction>
+
+      <!-- 声部 1：四个四分音符 -->
+      <note><pitch><step>C</step><octave>5</octave></pitch><duration>4</duration><type>quarter</type></note>
+      <note><pitch><step>D</step><octave>5</octave></pitch><duration>4</duration><type>quarter</type></note>
+      <note><pitch><step>E</step><octave>5</octave></pitch><duration>4</duration><type>quarter</type></note>
+      <note><pitch><step>F</step><octave>5</octave></pitch><duration>4</duration><type>quarter</type></note>
+
+      <!-- 回退到小节开头，写声部 2 -->
+      <backup><duration>16</duration></backup>
+      <note><pitch><step>C</step><octave>4</octave></pitch><duration>16</duration><type>whole</type></note>
+    </measure>
+  </part>
+  <part id="P2">
+    <measure number="1">
+      <attributes>
+        <divisions>4</divisions>
+        <time><beats>4</beats><beat-type>4</beat-type></time>
+      </attributes>
+      <note><pitch><step>C</step><octave>3</octave></pitch><duration>8</duration><type>half</type></note>
+      <note><pitch><step>G</step><octave>3</octave></pitch><duration>8</duration><type>half</type></note>
+    </measure>
+  </part>
+</score-partwise>
