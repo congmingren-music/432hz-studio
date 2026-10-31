@@ -218,8 +218,12 @@ class Handler(BaseHTTPRequestHandler):
                     seq = [[n["midi"], n["dur"]] for n in main["notes"]]
                     meta["kind"] = "midi"
                     meta["tracks"] = len(tracks)
-                    track_info = [{"name": f"轨道 {i+1}", "count": len(t["notes"])}
-                                  for i, t in enumerate(tracks)]
+                    meta["main"] = tracks.index(main)
+                    track_info = [
+                        {"name": f"轨道 {i+1}", "count": len(t["notes"]),
+                         "notes": [[n["midi"], n["dur"]] for n in t["notes"]]}
+                        for i, t in enumerate(tracks)
+                    ]
                 else:
                     tracks, meta = musicxml.parse_musicxml_tracks(tmp)
                     main = musicxml.pick_main_track(tracks)
@@ -228,7 +232,12 @@ class Handler(BaseHTTPRequestHandler):
                     seq = [[n["midi"], n["dur"]] for n in main["notes"]]
                     meta["kind"] = "musicxml"
                     meta["tracks"] = len(tracks)
-                    track_info = [{"name": t["name"], "count": len(t["notes"])} for t in tracks]
+                    meta["main"] = tracks.index(main)
+                    track_info = [
+                        {"name": t["name"], "count": len(t["notes"]),
+                         "notes": [[n["midi"], n["dur"]] for n in t["notes"]]}
+                        for t in tracks
+                    ]
             except Exception as e:
                 return self._json({"error": f"解析失败：{str(e)[:160]}"}, 400)
             finally:
