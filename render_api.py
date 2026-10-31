@@ -446,6 +446,28 @@ def render_piece(timbre, piece, tempo=1.0, ring=2.0, on_progress=None):
     return path, len(pcm) / SR
 
 
+# 非谐波窄带陷波：79 号最强峰在 5.77× 基频（比所有谐波都响），86 号在 3.85/4.58/6.87×。
+# 这些不是整数倍，听感就是「金属铃」。用 bandreject 精确挖掉，保留整数倍谐波。
+NOTCH = {
+    "79": [5.77, 7.12, 7.67, 6.83],
+    "86": [4.58, 3.85, 6.87],
+}
+
+
+# 升调抗混叠：曾试过给 rate>1.25 的音加低通，用户判定「方向不对，且把前半段拉回去了」。
+# 默认关闭，保留能力备查；别再默认开启。
+LOWPASS = {"on": False, "from_rate": 1.25, "ceiling": 16000.0, "floor_hz": 9000.0}
+
+
+def _notch_filters(key, target_f0, sr=SR):
+    out = []
+    for m in NOTCH.get(str(key), []):
+        f = target_f0 * m
+        if 80 < f < sr / 2 - 300:
+            out.append(f"bandreject=f={f:.0f}:width_type=h:w={max(80.0, f * 0.035):.0f}")
+    return out
+
+
 def _render_one(src, sample, midi, dur, tmp_dir, tag):
     """用指定采样渲染一个音（单层）。"""
     target = 432.0 * 2 ** ((midi - 69) / 12.0)
@@ -456,8 +478,15 @@ def _render_one(src, sample, midi, dur, tmp_dir, tag):
     out = os.path.join(tmp_dir, f"{tag}.wav")
     fade = min(0.6, dur * 0.5)
     parts = [f"aresample={SR}", f"asetrate={int(round(SR * rate))}", f"aresample={SR}"]
+    # 升调超过阈值时切掉混叠带
+    if LOWPASS.get("on") and rate > LOWPASS["from_rate"]:
+        cutoff = max(LOWPASS["floor_hz"], min(14000.0, LOWPASS["ceiling"] / rate))
+        parts.append(f"lowpass=f={cutoff:.0f}:poles=2")
     parts += _tone_filters(midi)
-    parts += [f"atrim=0:{dur:.3f}", f"afade=t=out:st={max(0.0, dur - fade):.3f}:d={fade:.3f}"]
+    parts += _notch_filters(sample["key"], target)
+    parts += [f"atrim=0:{dur:.3f}",
+              "afade=t=in:st=0:d=0.008",
+              f"afade=t=out:st={max(0.0, dur - fade):.3f}:d={fade:.3f}"]
     cmd = [FFMPEG, "-hide_banner", "-loglevel", "error", "-y"]
     if src["seek"]:
         cmd += ["-ss", str(src["seek"])]
@@ -474,6 +503,14 @@ DUAL = {
     "above_midi": 74,      # >= 这个 MIDI 才叠加
     "gain": 0.5,           # 辅层音量（相对主层）
     "aux_lower": 5,        # 辅层采样至少比主层低这么多半音（逼它取更低八度）
+}
+
+# 低音补亮：低音区古筝弦基频弱、泛音少，听着发闷。
+# ⚠️ 默认关闭（gain=0）：曾默认 0.35，用户反馈「有杂音」。要试再临时打开。
+DUAL_LOW = {
+    "below_midi": 55,      # <= 这个 MIDI 才叠加
+    "gain": 0.0,           # 高八度层音量（默认关）
+    "aux_higher": 10,      # 辅层采样至少比主层高这么多半音
 }
 
 
@@ -497,6 +534,13 @@ def _note_audio(src, midi, dur, idx, tmp_dir):
             sig2 = _render_one(src, s2, midi, dur, tmp_dir, f"n{idx}a")
             n = min(sig.size, sig2.size)
             sig = sig[:n] + sig2[:n] * float(DUAL["gain"])
+    if DUAL_LOW.get("gain") and midi <= DUAL_LOW["below_midi"]:
+        higher = [x for x in src["samples"] if midi_of(x["hz"]) >= s["smidi"] + float(DUAL_LOW["aux_higher"])]
+        if higher:
+            s3 = _nearest(higher, midi)
+            sig3 = _render_one(src, s3, midi, dur, tmp_dir, f"n{idx}h")
+            n = min(sig.size, sig3.size)
+            sig = sig[:n] + sig3[:n] * float(DUAL_LOW["gain"])
     return sig
 
 
