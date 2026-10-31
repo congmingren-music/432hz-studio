@@ -99,9 +99,9 @@
 
       <div class="up">
         <h2 style="margin-top:0">导入乐谱</h2>
-        <input type="file" id="scoreFile" accept=".xml,.musicxml">
+        <input type="file" id="scoreFile" accept=".xml,.musicxml,.mid,.midi">
         <button id="scoreBtn" style="width:100%">解析并加入编排</button>
-        <div class="hint">支持 MusicXML（Sibelius / MuseScore / Finale 导出）。解析后作为一个「音符序列」段落加入编排，用当前选中音源演奏。</div>
+        <div class="hint">支持 MusicXML 与 MIDI（.mid/.midi）。解析后作为一个「音符序列」段落加入编排，用当前选中音源演奏。</div>
         <div class="log" id="scoreLog"></div>
       </div>
     </section>
@@ -435,14 +435,14 @@
 
   $('scoreBtn').onclick = function(){
     var f = $('scoreFile').files[0];
-    if (!f) { $('scoreLog').textContent = '先选一个 .xml / .musicxml 文件'; return; }
+    if (!f) { $('scoreLog').textContent = '先选一个 .xml / .musicxml / .mid 文件'; return; }
     $('scoreLog').textContent = '读取…';
     var fr = new FileReader();
     fr.onload = function(){
       var b64 = String(fr.result).split(',')[1] || '';
       $('scoreLog').textContent = '解析中…';
       req('/api/score_parse', {method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({data: b64})}).then(function(r){ return r.json(); }).then(function(d){
+        body: JSON.stringify({data: b64, name: f.name})}).then(function(r){ return r.json(); }).then(function(d){
         if (d.error) { $('scoreLog').textContent = d.error; return; }
         var n = d.notes.length;
         $('scoreLog').textContent = '解析出 ' + n + ' 个音 · ' + (d.meta.title || '无标题') +
