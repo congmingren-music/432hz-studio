@@ -7,3 +7,5 @@ __pycache__/
 samples/
 # 渲染输出
 out/
+# 古琴曲库（lukewys/Guqin-Dataset，无 LICENSE，学术用途；不入公开仓库）
+guqin/
