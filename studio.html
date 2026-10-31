@@ -111,6 +111,7 @@
         <button id="uploadBtn" style="width:100%">测音高并加入音源</button>
         <div class="hint">支持 wav/flac/mp3/ogg/m4a。上传后自动测基频，按最近采样点变调使用。</div>
         <div class="log" id="upLog"></div>
+        <div id="pitchBox" style="display:none;margin-top:8px"></div>
       </div>
 
       <div class="up">
@@ -237,6 +238,54 @@
       d.onclick = function(){ state.piece = p[0]; renderPieces(); };
       box.appendChild(d);
     });
+  }
+
+  function showPitchEditor(pid, samples){
+    var box = $('pitchBox');
+    box.innerHTML = '';
+    if (!samples || !samples.length) { box.style.display = 'none'; return; }
+    box.style.display = 'block';
+    box.appendChild(el('div', 'hint', '自动测出的音高可能被泛音带偏（古筝、二胡低音弦尤其明显）。核对一下，错了直接改 Hz 再保存。'));
+
+    function midiText(hz){ return hz > 0 ? 'MIDI ' + Math.round(69 + 12 * Math.log(hz / 440) / Math.LN2) : '—'; }
+
+    samples.forEach(function(s){
+      var row = el('div', 'packrow');
+      row.appendChild(el('span', '', s.file));
+      var inp = document.createElement('input');
+      inp.type = 'number'; inp.step = '0.01'; inp.min = '20'; inp.max = '20000';
+      inp.value = s.hz;
+      inp.style.cssText = 'width:78px;font:inherit;font-size:11px;padding:2px 4px;border:1px solid var(--rule);border-radius:2px;background:#fff';
+      var info = el('small', '', midiText(s.hz));
+      info.style.cssText = 'font-size:10px;color:var(--tint1);width:56px;text-align:right';
+      inp.oninput = function(){ info.textContent = midiText(parseFloat(inp.value) || 0); };
+      s._inp = inp;
+      row.appendChild(inp);
+      row.appendChild(info);
+      box.appendChild(row);
+    });
+
+    var btn = el('button', '', '保存音高');
+    btn.style.cssText = 'width:100%;margin-top:8px;padding:6px;font-size:12px';
+    btn.onclick = function(){
+      var payload = samples.map(function(s){ return { file: s.file, hz: parseFloat(s._inp.value) }; })
+        .filter(function(p){ return p.hz > 0; });
+      req('/api/pack_update', {method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ id: pid, samples: payload })})
+      .then(function(r){ return r.json(); }).then(function(d){
+        var msg = $('pitchMsg');
+        if (d.error) { msg.textContent = '保存失败：' + d.error; return; }
+        msg.textContent = '已保存 ' + d.changed + ' 个采样，变调按新音高计算';
+        loadSources();
+      }).catch(function(e){
+        var msg = $('pitchMsg');
+        if (msg) msg.textContent = '保存失败：' + e;
+      });
+    };
+    box.appendChild(btn);
+    var msgBox = el('div', 'log');
+    msgBox.id = 'pitchMsg';
+    box.appendChild(msgBox);
   }
 
   function loadPieces(){
@@ -709,6 +758,7 @@
       $('upLog').textContent = msg;
       state.timbre = d.id;
       loadSources();
+      showPitchEditor(d.id, d.samples || []);
     }).catch(function(e){ $('upLog').textContent = '上传失败：' + e; });
   };
 
