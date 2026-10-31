@@ -65,6 +65,10 @@
   .sec{border:1px solid var(--rule);border-radius:2px;padding:7px 8px;margin-bottom:6px;background:#fff;cursor:grab}
   .sec.drag{opacity:.35}
   .sec.over{outline:2px dashed var(--tint1);outline-offset:-2px}
+  .tl{display:flex;height:14px;border:1px solid var(--rule);border-radius:2px;overflow:hidden;background:var(--rule);margin-bottom:4px}
+  .tlbar{height:100%;background:var(--tint2);border-right:1px solid var(--panel);min-width:2px}
+  .tlbar.alt{background:var(--tint1)}
+  .tltxt{font-size:10.5px;color:var(--tint1);margin-bottom:8px}
   .sec .line{display:flex;gap:5px;margin-bottom:4px;align-items:center}
   .sec select,.sec input{font:inherit;font-size:11px;padding:3px 4px;border:1px solid var(--rule);border-radius:2px;background:#fff;color:var(--ink);min-width:0}
   .sec select{flex:1}
@@ -127,6 +131,7 @@
 
       <label class="chk" style="margin-top:14px"><input type="checkbox" id="useArrange"> 使用自定义编排</label>
       <div id="arrangeBox" style="display:none;margin-top:10px">
+        <div id="timeline"></div>
         <div id="secList"></div>
         <div style="display:flex;gap:8px;margin-top:8px">
           <button class="ghost" id="addSec" style="flex:1;padding:7px">+ 段落</button>
@@ -232,6 +237,17 @@
       d.onclick = function(){ state.piece = p[0]; renderPieces(); };
       box.appendChild(d);
     });
+  }
+
+  function loadPieces(){
+    return req('/api/pieces').then(function(r){ return r.json(); }).then(function(d){
+      if (!d || !d.pieces || !d.pieces.length) return;
+      PIECES = d.pieces.map(function(p){
+        return [p.id, p.group === '古琴' ? p.label + ' · 琴' : p.label];
+      });
+      renderPieces();
+      if (sections.length) renderSections();
+    }).catch(function(){});
   }
 
   function loadSources(){
@@ -353,6 +369,31 @@
     return row;
   }
 
+  var tlTimer = null;
+  function refreshTimeline(){
+    var box = $('timeline');
+    if (!box) return;
+    if (!sections.length) { box.innerHTML = ''; return; }
+    if (tlTimer) clearTimeout(tlTimer);
+    tlTimer = setTimeout(function(){
+      req('/api/estimate', {method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({sections: sections, tempo: parseFloat($('tempo').value) || 1, ring: parseFloat($('ring').value) || 2})})
+      .then(function(r){ return r.json(); }).then(function(d){
+        if (!d || !d.sections) return;
+        box.innerHTML = '';
+        var bar = el('div', 'tl');
+        d.sections.forEach(function(sec, i){
+          var b = el('div', 'tlbar' + (i % 2 ? ' alt' : ''));
+          b.style.flex = Math.max(sec, 0.2) + ' 1 0';
+          b.title = '第 ' + (i + 1) + ' 段 · ' + sec.toFixed(1) + 's';
+          bar.appendChild(b);
+        });
+        box.appendChild(bar);
+        box.appendChild(el('div', 'tltxt', '总时长 ≈ ' + d.total.toFixed(1) + ' 秒 · ' + sections.length + ' 段（拖动卡片可调整顺序）'));
+      }).catch(function(){});
+    }, 160);
+  }
+
   function renderSections(){
     var box = $('secList');
     box.innerHTML = '';
@@ -470,6 +511,7 @@
       box.appendChild(d);
     });
     $('arrangeHint').textContent = '共 ' + sections.length + ' 段 · 顺序即时间顺序 · 拖动卡片可调整顺序';
+    refreshTimeline();
   }
 
   $('useArrange').onchange = function(){
@@ -671,6 +713,7 @@
   };
 
   renderPieces();
+  loadPieces();
   loadSources();
 })();
 </script>
