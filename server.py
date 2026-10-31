@@ -32,6 +32,29 @@ JOBS = {}
 LOCK = threading.Lock()
 
 
+def _out_wavs():
+    """out/ 下的 wav，按修改时间新→旧。"""
+    if not os.path.isdir(R.OUT_DIR):
+        return []
+    items = [
+        (os.path.getmtime(os.path.join(R.OUT_DIR, n)), n)
+        for n in os.listdir(R.OUT_DIR)
+        if n.lower().endswith(".wav")
+    ]
+    items.sort(reverse=True)
+    return items
+
+
+def out_info():
+    items = _out_wavs()
+    total = sum(os.path.getsize(os.path.join(R.OUT_DIR, n)) for _t, n in items)
+    return {
+        "count": len(items),
+        "mb": round(total / 1024 / 1024, 1),
+        "newest": [n for _t, n in items[:5]],
+    }
+
+
 def run_job(job_id, timbre, piece, tempo, ring, want_video, sections=None):
     try:
         def prog(p):
@@ -126,6 +149,9 @@ class Handler(BaseHTTPRequestHandler):
         if p == "/api/pieces":
             return self._json({"pieces": R.all_pieces()})
 
+        if p == "/api/out_info":
+            return self._json(out_info())
+
         if p.startswith("/api/job/"):
             jid = p.rsplit("/", 1)[-1]
             with LOCK:
@@ -161,6 +187,21 @@ class Handler(BaseHTTPRequestHandler):
             except (TypeError, ValueError):
                 ring = 2.0
             return self._json(R.estimate_sections(sections, tempo, ring))
+
+        if p == "/api/out_clean":
+            try:
+                keep = max(1, int(body.get("keep", 10)))
+            except (TypeError, ValueError):
+                keep = 10
+            items = _out_wavs()
+            removed = []
+            for _t, n in items[keep:]:
+                try:
+                    os.remove(os.path.join(R.OUT_DIR, n))
+                    removed.append(n)
+                except OSError:
+                    pass
+            return self._json({"ok": True, "removed": len(removed), "kept": min(keep, len(items))})
 
         if p == "/api/render":
             timbre = str(body.get("timbre", "erhu"))
