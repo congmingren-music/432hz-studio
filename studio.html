@@ -1,0 +1,502 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>432 Hz 工作室</title>
+<style>
+  :root{
+    --paper:#F7F2EB; --ink:#081F5C; --ink2:#334EAC;
+    --tint1:#7096D1; --tint2:#BAD6EB; --tint3:#D0E3FF;
+    --panel:#FCF9F3; --rule:#D8E4F4;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;padding:28px;background:var(--paper);color:var(--ink);
+    font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;
+  }
+  .wrap{max-width:1240px;margin:0 auto}
+  .badge{
+    display:inline-block;padding:3px 11px;border:1px dashed var(--tint1);
+    border-radius:999px;font-size:10.5px;letter-spacing:.12em;color:var(--ink2);
+  }
+  h1{
+    font-family:"KaiTi","楷体","STKaiti",Georgia,serif;
+    font-size:32px;margin:12px 0 4px;font-weight:600;
+  }
+  .sub{font-size:12.5px;color:var(--ink2);margin:0 0 18px}
+  .rule{height:1px;background:var(--rule);margin:16px 0 20px}
+  .grid{display:grid;grid-template-columns:1fr 1fr 1.15fr;gap:18px;align-items:start}
+  @media(max-width:980px){.grid{grid-template-columns:1fr}}
+  .panel{background:var(--panel);border:1px solid var(--rule);border-radius:3px;padding:16px}
+  h2{font-size:11px;letter-spacing:.12em;color:var(--tint1);margin:0 0 12px;font-weight:600}
+  .opt{
+    display:flex;align-items:center;gap:9px;padding:8px 10px;border:1px solid var(--rule);
+    border-radius:2px;margin-bottom:7px;cursor:pointer;font-size:13px;transition:.14s;
+  }
+  .opt:hover{background:#EDF3FC}
+  .opt.on{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+  .opt .dot{width:7px;height:7px;border-radius:50%;background:var(--tint2);flex:0 0 auto}
+  .opt.on .dot{background:var(--tint2)}
+  .opt small{margin-left:auto;font-size:10.5px;color:var(--tint1)}
+  .opt.on small{color:var(--tint2)}
+  .row{display:flex;align-items:center;gap:10px;margin:12px 0;font-size:12.5px}
+  .row label{width:42px;color:var(--ink2);flex:0 0 auto}
+  .row input[type=range]{flex:1;accent-color:var(--ink)}
+  .row .val{width:46px;text-align:right;font-variant-numeric:tabular-nums;color:var(--tint1)}
+  button{
+    appearance:none;border:1px solid var(--ink);background:var(--ink);color:var(--paper);
+    font:inherit;font-size:13px;padding:10px 18px;border-radius:2px;cursor:pointer;transition:.14s;
+  }
+  button:hover{opacity:.9}
+  button:disabled{opacity:.35;cursor:not-allowed}
+  button.ghost{background:none;color:var(--ink);border-color:var(--rule)}
+  .bar{height:3px;background:var(--tint3);border-radius:2px;overflow:hidden;margin:14px 0 10px}
+  .bar i{display:block;height:100%;width:0;background:var(--ink);transition:width .3s}
+  .meta{font-size:11.5px;color:var(--tint1);min-height:16px}
+  audio{width:100%;margin-top:12px}
+  .dl{display:inline-block;margin-top:10px;font-size:12px;color:var(--ink2);text-decoration:none;border-bottom:1px solid var(--tint2)}
+  .up{border:1px dashed var(--tint1);border-radius:3px;padding:14px;margin-top:18px}
+  .up input[type=file]{font-size:12px;color:var(--ink2);margin-bottom:8px;display:block}
+  .up .hint{font-size:11.5px;color:var(--tint1);line-height:1.6;margin-top:6px}
+  .log{font-size:11.5px;color:var(--ink2);margin-top:8px;min-height:16px;white-space:pre-wrap}
+  .chk{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ink2);cursor:pointer;user-select:none}
+  .chk input{accent-color:var(--ink);width:14px;height:14px}
+  .sec{border:1px solid var(--rule);border-radius:2px;padding:7px 8px;margin-bottom:6px;background:#fff}
+  .sec .line{display:flex;gap:5px;margin-bottom:4px;align-items:center}
+  .sec select,.sec input{font:inherit;font-size:11px;padding:3px 4px;border:1px solid var(--rule);border-radius:2px;background:#fff;color:var(--ink);min-width:0}
+  .sec select{flex:1}
+  .sec input[type=number]{width:48px}
+  .sec input.gain{width:44px}
+  .sec .ops{display:flex;gap:4px;justify-content:flex-end}
+  .sec .ops button{padding:1px 6px;font-size:10.5px;background:none;color:var(--ink2);border-color:var(--rule)}
+  .packrow{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--ink2);padding:4px 0;border-bottom:1px solid var(--rule)}
+  .packrow span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .packrow button{padding:1px 6px;font-size:10.5px;background:none;color:var(--ink2);border-color:var(--rule)}
+  .err{color:#8a2b2b}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <span class="badge">A4 = 432.00 Hz · 企业定义频率基准</span>
+  <h1>432 Hz 工作室</h1>
+  <p class="sub">选音源 · 选曲目 · 调速度与余音 · 生成后可试听与下载</p>
+  <div class="rule"></div>
+
+  <div class="grid">
+    <section class="panel">
+      <h2>音源</h2>
+      <div id="srcList"></div>
+      <button class="ghost" id="refreshSrc" style="width:100%;margin-top:6px">刷新音源</button>
+      <div class="up">
+        <h2 style="margin-top:0">上传本地采样</h2>
+        <input type="file" id="files" multiple accept=".wav,.flac,.mp3,.ogg,.m4a">
+        <input id="packName" placeholder="采样包名称（英文）" style="width:100%;padding:6px;border:1px solid var(--rule);border-radius:2px;font:inherit;font-size:12.5px;margin-bottom:8px">
+        <button id="uploadBtn" style="width:100%">测音高并加入音源</button>
+        <div class="hint">支持 wav/flac/mp3/ogg/m4a。上传后自动测基频，按最近采样点变调使用。</div>
+        <div class="log" id="upLog"></div>
+      </div>
+
+      <div class="up">
+        <h2 style="margin-top:0">导入乐谱</h2>
+        <input type="file" id="scoreFile" accept=".xml,.musicxml">
+        <button id="scoreBtn" style="width:100%">解析并加入编排</button>
+        <div class="hint">支持 MusicXML（Sibelius / MuseScore / Finale 导出）。解析后作为一个「音符序列」段落加入编排，用当前选中音源演奏。</div>
+        <div class="log" id="scoreLog"></div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>曲目</h2>
+      <div id="pieceList"></div>
+      <div class="row"><label>速度</label><input type="range" id="tempo" min="0.6" max="1.6" step="0.05" value="1"><span class="val" id="tempoV">1.00×</span></div>
+      <div class="row"><label>余音</label><input type="range" id="ring" min="0.5" max="5" step="0.1" value="2"><span class="val" id="ringV">2.0s</span></div>
+
+      <label class="chk" style="margin-top:14px"><input type="checkbox" id="useArrange"> 使用自定义编排</label>
+      <div id="arrangeBox" style="display:none;margin-top:10px">
+        <div id="secList"></div>
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button class="ghost" id="addSec" style="flex:1;padding:7px">+ 段落</button>
+          <button class="ghost" id="tplSec" style="flex:1;padding:7px">四重奏模板</button>
+        </div>
+        <div class="log" id="arrangeHint">每段可选「整曲」或「单音重复」；顺序即时间顺序。</div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>生成</h2>
+      <label class="chk"><input type="checkbox" id="wantVideo"> 同时生成频谱视频（较慢）</label>
+      <button id="go" style="width:100%;margin-top:10px">开始渲染</button>
+      <div class="bar"><i id="prog"></i></div>
+      <div class="meta" id="meta">待生成</div>
+      <audio id="player" controls style="display:none"></audio>
+      <a class="dl" id="download" style="display:none" download>下载 WAV</a>
+      <video id="vplayer" controls style="display:none;width:100%;margin-top:12px"></video>
+      <a class="dl" id="vdownload" style="display:none" download>下载 MP4</a>
+      <div class="log" id="stages"></div>
+      <div class="log" id="errLog"></div>
+    </section>
+  </div>
+</div>
+
+<script>
+(function(){
+  'use strict';
+  var state = { timbre:'erhu', piece:'molihua', job:null, timer:null };
+  var TOKEN = (new URLSearchParams(location.search)).get('token') || '';
+  function req(url, opt){
+    opt = opt || {};
+    opt.headers = Object.assign({}, opt.headers || {});
+    if (TOKEN) opt.headers['X-Access-Token'] = TOKEN;
+    return fetch(url, opt);
+  }
+  var $ = function(id){ return document.getElementById(id); };
+
+  function el(tag, cls, html){
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (html !== undefined) e.innerHTML = html;
+    return e;
+  }
+
+  function renderSources(data){
+    var box = $('srcList'); box.innerHTML = '';
+    function add(id, label, extra, isUser){
+      var d = el('div', 'opt' + (state.timbre === id ? ' on' : ''));
+      d.appendChild(el('span', 'dot'));
+      d.appendChild(el('span', '', label + (isUser ? '（我的）' : '')));
+      if (extra) d.appendChild(el('small', '', extra));
+      d.onclick = function(){ state.timbre = id; renderSources(data); };
+      box.appendChild(d);
+    }
+    data.builtin.forEach(function(s){ add(s.id, s.label, '', false); });
+    data.user.forEach(function(s){ add(s.id, s.label, s.count + ' 个采样', true); });
+    if (data.user.length) {
+      var mg = el('div', 'log', '');
+      mg.style.marginTop = '8px';
+      var h = el('div', '', '采样包管理');
+      h.style.cssText = 'font-size:10.5px;letter-spacing:.1em;color:var(--tint1);margin-bottom:6px';
+      mg.appendChild(h);
+      data.user.forEach(function(s){
+        var row = el('div', 'packrow');
+        row.appendChild(el('span', '', s.label + ' (' + s.id + ')'));
+        var rn = el('button', '', '改名');
+        rn.onclick = function(){
+          var nv = prompt('新的显示名', s.label);
+          if (!nv) return;
+          req('/api/pack_rename', {method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({id: s.id, label: nv})}).then(function(r){ return r.json(); }).then(function(){
+              loadSources();
+            });
+        };
+        var rm = el('button', '', '删除');
+        rm.onclick = function(){
+          if (!confirm('删除采样包「' + s.label + '」？这会删掉目录里的所有采样文件，不能恢复。')) return;
+          req('/api/pack_remove', {method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({id: s.id})}).then(function(r){ return r.json(); }).then(function(d){
+            if (d.error) { alert('删除失败：' + d.error); return; }
+            if (state.timbre === s.id) state.timbre = 'erhu';
+            loadSources();
+          });
+        };
+        row.appendChild(rn); row.appendChild(rm);
+        mg.appendChild(row);
+      });
+      box.appendChild(mg);
+    }
+  }
+
+  var PIECES = [
+    ['molihua','茉莉花（主歌）'], ['bayin','八音阶'], ['wuyin','五音阶'], ['hijaz','Hijaz 音阶'],
+    ['quartet','四重奏（多音色编排）']
+  ];
+  function renderPieces(){
+    var box = $('pieceList'); box.innerHTML = '';
+    PIECES.forEach(function(p){
+      var d = el('div', 'opt' + (state.piece === p[0] ? ' on' : ''));
+      d.appendChild(el('span', 'dot'));
+      d.appendChild(el('span', '', p[1]));
+      d.onclick = function(){ state.piece = p[0]; renderPieces(); };
+      box.appendChild(d);
+    });
+  }
+
+  function loadSources(){
+    req('/api/sources').then(function(r){ return r.json(); }).then(function(d){
+      state.sources = d;
+      renderSources(d);
+    }).catch(function(e){ $('errLog').textContent = '音源加载失败：' + e; });
+  }
+
+  function poll(){
+    if (!state.job) return;
+    req('/api/job/' + state.job).then(function(r){ return r.json(); }).then(function(j){
+      if (j.status === 'running') {
+        $('prog').style.width = (j.progress || 0) + '%';
+        $('meta').textContent = '渲染中 ' + (j.progress || 0) + '%';
+        state.timer = setTimeout(poll, 400);
+      } else if (j.status === 'done') {
+        $('prog').style.width = '100%';
+        $('meta').textContent = '完成 · ' + j.duration + ' 秒';
+        var a = $('player');
+        a.src = '/files/' + encodeURIComponent(j.file) + '?t=' + Date.now();
+        a.style.display = 'block';
+        var d = $('download');
+        d.href = a.src; d.download = j.file; d.style.display = 'inline-block';
+
+        if (j.video) {
+          var v = $('vplayer');
+          v.src = '/files/' + encodeURIComponent(j.video) + '?t=' + Date.now();
+          v.style.display = 'block';
+          var vd = $('vdownload');
+          vd.href = v.src; vd.download = j.video; vd.style.display = 'inline-block';
+        } else if (j.videoError) {
+          $('errLog').textContent = '视频未生成：' + j.videoError;
+        }
+
+        if (j.stages && j.stages.length) {
+          var lines = j.stages.map(function(s){
+            var m = Math.floor(s.at / 60), sec = (s.at % 60).toFixed(1);
+            return (m > 0 ? m + ':' : '0:') + (sec < 10 ? '0' : '') + sec + '  ' + s.name;
+          });
+          $('stages').textContent = lines.join('\n');
+        }
+        $('go').disabled = false;
+      } else {
+        $('meta').textContent = '失败';
+        $('errLog').textContent = j.error || '未知错误';
+        $('go').disabled = false;
+      }
+    }).catch(function(e){
+      $('errLog').textContent = '查询失败：' + e;
+      $('go').disabled = false;
+    });
+  }
+
+  // ── 自定义编排 ──
+  var sections = [];
+
+  function fillSources(sel, val){
+    sel.innerHTML = '';
+    var all = [];
+    (state.sources ? state.sources.builtin : []).forEach(function(s){ all.push([s.id, s.label]); });
+    (state.sources ? state.sources.user : []).forEach(function(s){ all.push([s.id, s.label + '（我的）']); });
+    all.forEach(function(o){
+      var e = document.createElement('option');
+      e.value = o[0]; e.textContent = o[1];
+      if (o[0] === val) e.selected = true;
+      sel.appendChild(e);
+    });
+    return sel;
+  }
+
+  function numInput(v, mn, mx, step, cb){
+    var i = document.createElement('input');
+    i.type = 'number'; i.value = v; i.min = mn; i.max = mx; i.step = step;
+    i.onchange = function(){ cb(parseFloat(i.value) || v); };
+    return i;
+  }
+
+  function renderSections(){
+    var box = $('secList');
+    box.innerHTML = '';
+    if (!sections.length) {
+      box.appendChild(el('div', 'log', '还没有段落——点「+ 段落」或「四重奏模板」'));
+      $('arrangeHint').textContent = '';
+      return;
+    }
+    sections.forEach(function(s, i){
+      var d = el('div', 'sec');
+
+      var l1 = el('div', 'line');
+      var selK = document.createElement('select');
+      [['piece', '整曲'], ['note', '单音']].forEach(function(o){
+        var e = document.createElement('option'); e.value = o[0]; e.textContent = o[1];
+        if (s.kind === o[0]) e.selected = true;
+        selK.appendChild(e);
+      });
+      selK.onchange = function(){
+        s.kind = selK.value;
+        if (s.kind === 'piece') { s.piece = 'molihua'; s.gain = 1.0; }
+        else { s.midi = 72; s.count = 3; s.gap = 1.9; s.dur = 2.6; s.gain = 0.9; }
+        renderSections();
+      };
+      l1.appendChild(selK);
+
+      var selT = fillSources(document.createElement('select'), s.timbre);
+      selT.onchange = function(){ s.timbre = selT.value; };
+      l1.appendChild(selT);
+      d.appendChild(l1);
+
+      var l2 = el('div', 'line');
+      if (s.kind === 'notes') {
+        l2.appendChild(el('span', '', '乐谱导入 · ' + ((s.notes || []).length) + ' 个音'));
+        var rm2 = el('button', '', '×');
+        rm2.style.cssText = 'padding:1px 6px;font-size:10.5px;background:none;color:var(--ink2);border:1px solid var(--rule);border-radius:2px;cursor:pointer';
+        rm2.onclick = function(){ sections.splice(i, 1); renderSections(); };
+        l2.appendChild(rm2);
+      } else if (s.kind === 'piece') {
+        var selP = document.createElement('select');
+        PIECES.filter(function(p){ return p[0] !== 'quartet'; }).forEach(function(p){
+          var e = document.createElement('option'); e.value = p[0]; e.textContent = p[1];
+          if (s.piece === p[0]) e.selected = true;
+          selP.appendChild(e);
+        });
+        selP.onchange = function(){ s.piece = selP.value; };
+        l2.appendChild(selP);
+        l2.appendChild(numInput(s.gain, 0, 2, 0.05, function(v){ s.gain = v; }));
+      } else {
+        l2.appendChild(numInput(s.midi, 48, 96, 1, function(v){ s.midi = v; }));
+        l2.appendChild(numInput(s.count, 1, 8, 1, function(v){ s.count = v; }));
+        l2.appendChild(numInput(s.gap, 0.3, 4, 0.1, function(v){ s.gap = v; }));
+        l2.appendChild(numInput(s.dur, 0.5, 8, 0.1, function(v){ s.dur = v; }));
+        l2.appendChild(numInput(s.gain, 0, 2, 0.05, function(v){ s.gain = v; }));
+      }
+      d.appendChild(l2);
+
+      var ops = el('div', 'ops');
+      var up = el('button', '', '↑');
+      up.onclick = function(){ if (i > 0) { var t = sections[i-1]; sections[i-1] = sections[i]; sections[i] = t; renderSections(); } };
+      var dn = el('button', '', '↓');
+      dn.onclick = function(){ if (i < sections.length-1) { var t = sections[i+1]; sections[i+1] = sections[i]; sections[i] = t; renderSections(); } };
+      var rm = el('button', '', '×');
+      rm.onclick = function(){ sections.splice(i, 1); renderSections(); };
+      ops.appendChild(up); ops.appendChild(dn); ops.appendChild(rm);
+      d.appendChild(ops);
+
+      box.appendChild(d);
+    });
+    $('arrangeHint').textContent = '共 ' + sections.length + ' 段 · 顺序即时间顺序';
+  }
+
+  $('useArrange').onchange = function(){
+    $('arrangeBox').style.display = this.checked ? 'block' : 'none';
+    if (this.checked && !sections.length) { loadTemplate(); }
+    renderSections();
+  };
+
+  function loadTemplate(){
+    sections = [
+      { kind:'note', timbre:'bell', midi:72, count:3, gap:1.9, dur:2.6, gain:0.9, pad:0.8 },
+      { kind:'piece', timbre:'erhu', piece:'molihua', gain:1.0, pad:1.2 },
+      { kind:'piece', timbre:'flute', piece:'molihua', gain:0.92, pad:1.0 },
+      { kind:'piece', timbre:'erhu', piece:'molihua', gain:1.0, pad:1.0 },
+      { kind:'note', timbre:'bell', midi:72, count:1, gap:0, dur:6.0, gain:0.85, pad:0 }
+    ];
+    renderSections();
+  }
+
+  $('addSec').onclick = function(){
+    sections.push({ kind:'piece', timbre:'erhu', piece:'molihua', gain:1.0, pad:0.8 });
+    renderSections();
+  };
+  $('tplSec').onclick = loadTemplate;
+
+  $('go').onclick = function(){
+    $('go').disabled = true;
+    $('prog').style.width = '0';
+    $('errLog').textContent = '';
+    $('player').style.display = 'none';
+    $('download').style.display = 'none';
+    $('vplayer').style.display = 'none';
+    $('vdownload').style.display = 'none';
+    $('stages').textContent = '';
+    $('meta').textContent = '提交中…';
+    req('/api/render', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify((function(){
+        var b = {
+          tempo: parseFloat($('tempo').value),
+          ring: parseFloat($('ring').value),
+          video: $('wantVideo').checked
+        };
+        if ($('useArrange').checked && sections.length) {
+          b.sections = sections.map(function(s){
+            var o = { kind: s.kind, timbre: s.timbre, gain: s.gain, pad: s.pad };
+            if (s.kind === 'note') { o.midi = s.midi; o.count = s.count; o.gap = s.gap; o.dur = s.dur; }
+            else if (s.kind === 'notes') { o.notes = s.notes; }
+            else { o.piece = s.piece; }
+            return o;
+          });
+        } else {
+          b.timbre = state.timbre;
+          b.piece = state.piece;
+        }
+        return b;
+      })())
+    }).then(function(r){ return r.json(); }).then(function(d){
+      state.job = d.job; poll();
+    }).catch(function(e){
+      $('meta').textContent = '提交失败';
+      $('errLog').textContent = String(e);
+      $('go').disabled = false;
+    });
+  };
+
+  $('scoreBtn').onclick = function(){
+    var f = $('scoreFile').files[0];
+    if (!f) { $('scoreLog').textContent = '先选一个 .xml / .musicxml 文件'; return; }
+    $('scoreLog').textContent = '读取…';
+    var fr = new FileReader();
+    fr.onload = function(){
+      var b64 = String(fr.result).split(',')[1] || '';
+      $('scoreLog').textContent = '解析中…';
+      req('/api/score_parse', {method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({data: b64})}).then(function(r){ return r.json(); }).then(function(d){
+        if (d.error) { $('scoreLog').textContent = d.error; return; }
+        var n = d.notes.length;
+        $('scoreLog').textContent = '解析出 ' + n + ' 个音 · ' + (d.meta.title || '无标题') +
+          ' · ' + d.meta.tempo + ' BPM';
+        sections.push({kind:'notes', timbre: state.timbre, notes: d.notes, gain: 1.0, pad: 0.5});
+        $('useArrange').checked = true;
+        $('arrangeBox').style.display = 'block';
+        renderSections();
+      }).catch(function(e){ $('scoreLog').textContent = '解析失败：' + e; });
+    };
+    fr.readAsDataURL(f);
+  };
+
+  $('tempo').oninput = function(){ $('tempoV').textContent = parseFloat(this.value).toFixed(2) + '×'; };
+  $('ring').oninput = function(){ $('ringV').textContent = parseFloat(this.value).toFixed(1) + 's'; };
+  $('refreshSrc').onclick = loadSources;
+
+  $('uploadBtn').onclick = function(){
+    var files = $('files').files;
+    var name = ($('packName').value || '').trim() || ('pack' + Date.now());
+    if (!files.length) { $('upLog').textContent = '先选文件'; return; }
+    $('upLog').textContent = '读取 ' + files.length + ' 个文件…';
+    var jobs = [];
+    for (var i = 0; i < files.length; i++) {
+      (function(f){
+        jobs.push(new Promise(function(res){
+          var fr = new FileReader();
+          fr.onload = function(){
+            var b64 = String(fr.result).split(',')[1] || '';
+            res({ name: f.name, data: b64 });
+          };
+          fr.readAsDataURL(f);
+        }));
+      })(files[i]);
+    }
+    Promise.all(jobs).then(function(list){
+      $('upLog').textContent = '上传并测音高…';
+      return req('/api/upload', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ name: name, label: name, files: list })
+      });
+    }).then(function(r){ return r.json(); }).then(function(d){
+      if (d.error) { $('upLog').textContent = '失败：' + d.error; return; }
+      var msg = '已加入 ' + d.count + ' 个采样（包名 ' + d.id + '）';
+      if (d.errors && d.errors.length) msg += '\n跳过：' + d.errors.join('; ');
+      $('upLog').textContent = msg;
+      state.timbre = d.id;
+      loadSources();
+    }).catch(function(e){ $('upLog').textContent = '上传失败：' + e; });
+  };
+
+  renderPieces();
+  loadSources();
+})();
+</script>
+</body>
+</html>

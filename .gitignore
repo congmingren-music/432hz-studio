@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+*.pyo
+# 界面截图与本地生成物
+*.png
+# 采样（用 fetch_samples.py 下载，不入库）
+samples/
+# 渲染输出
+out/
