@@ -72,6 +72,17 @@ BUILTIN = {
         "hz": {"C4": 261.41, "D#4": 311.31, "F#4": 369.40, "A4": 440.12, "C5": 524.53},
         "seek": None,
     },
+    "guzheng": {
+        "label": "古筝",
+        "dir": os.path.join(SAMPLES, "guzheng"),
+        "pattern": r"guzheng-{key}-v1-rr1\.flac$",
+        # 实测基频（440 基准）。古筝是五声调弦，部分采样点偏离十二平均律，
+        # 用实测值算变调比率即可自动补偿。
+        "hz": {"38": 73.11, "43": 96.69, "45": 110.97, "50": 147.30, "53": 175.07,
+               "55": 195.48, "57": 221.03, "60": 262.87, "62": 292.75, "65": 342.29,
+               "67": 390.88, "72": 523.30, "74": 587.57, "79": 801.18, "86": 1194.09},
+        "seek": None,
+    },
 }
 
 # ── 曲目：MIDI + 时长 ──
@@ -260,7 +271,7 @@ def render_piece(timbre, piece, tempo=1.0, ring=2.0, on_progress=None):
         out = os.path.join(tmp_dir, f"n{i}.wav")
         fade = min(0.6, seg_dur * 0.5)
         af = (
-            f"asetrate={int(round(SR * rate))},aresample={SR},"
+            f"aresample={SR},asetrate={int(round(SR * rate))},aresample={SR},"
             f"atrim=0:{seg_dur:.3f},"
             f"afade=t=out:st={max(0.0, seg_dur - fade):.3f}:d={fade:.3f}"
         )
@@ -310,7 +321,7 @@ def _note_audio(src, midi, dur, idx, tmp_dir):
     out = os.path.join(tmp_dir, f"n{idx}.wav")
     fade = min(0.6, dur * 0.5)
     af = (
-        f"asetrate={int(round(SR * rate))},aresample={SR},"
+        f"aresample={SR},asetrate={int(round(SR * rate))},aresample={SR},"
         f"atrim=0:{dur:.3f},"
         f"afade=t=out:st={max(0.0, dur - fade):.3f}:d={fade:.3f}"
     )
