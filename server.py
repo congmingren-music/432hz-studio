@@ -123,6 +123,9 @@ class Handler(BaseHTTPRequestHandler):
                      for k, v in R.user_sources().items()]
             return self._json({"builtin": builtin, "user": users})
 
+        if p == "/api/pieces":
+            return self._json({"pieces": R.all_pieces()})
+
         if p.startswith("/api/job/"):
             jid = p.rsplit("/", 1)[-1]
             with LOCK:
@@ -146,6 +149,18 @@ class Handler(BaseHTTPRequestHandler):
             body = json.loads(self.rfile.read(length).decode("utf-8")) if length else {}
         except Exception:
             return self._json({"error": "bad json"}, 400)
+
+        if p == "/api/estimate":
+            sections = body.get("sections") or []
+            try:
+                tempo = max(0.5, min(2.0, float(body.get("tempo", 1.0))))
+            except (TypeError, ValueError):
+                tempo = 1.0
+            try:
+                ring = max(0.5, min(6.0, float(body.get("ring", 2.0))))
+            except (TypeError, ValueError):
+                ring = 2.0
+            return self._json(R.estimate_sections(sections, tempo, ring))
 
         if p == "/api/render":
             timbre = str(body.get("timbre", "erhu"))
