@@ -73,6 +73,12 @@
   .packrow{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--ink2);padding:4px 0;border-bottom:1px solid var(--rule)}
   .packrow span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .packrow button{padding:1px 6px;font-size:10.5px;background:none;color:var(--ink2);border-color:var(--rule)}
+  .layers{border-left:2px solid var(--tint3);padding-left:8px;margin:2px 0 6px}
+  .layer{display:flex;gap:4px;align-items:center;margin-bottom:4px}
+  .layer select,.layer input{font:inherit;font-size:10.5px;padding:2px 3px;border:1px solid var(--rule);border-radius:2px;background:#fff;color:var(--ink);min-width:0}
+  .layer select{flex:1}
+  .layer input[type=number]{width:50px}
+  .layer button{padding:1px 5px;font-size:10px;background:none;color:var(--ink2);border:1px solid var(--rule);border-radius:2px;cursor:pointer}
   .err{color:#8a2b2b}
 </style>
 </head>
@@ -297,6 +303,49 @@
     return i;
   }
 
+  function layerRow(layer, onRemove){
+    var row = el('div', 'layer');
+
+    var sT = fillSources(document.createElement('select'), layer.timbre);
+    sT.onchange = function(){ layer.timbre = sT.value; };
+    row.appendChild(sT);
+
+    var sK = document.createElement('select');
+    [['piece','整曲'],['note','单音']].forEach(function(o){
+      var e = document.createElement('option'); e.value = o[0]; e.textContent = o[1];
+      if (layer.kind === o[0]) e.selected = true;
+      sK.appendChild(e);
+    });
+    sK.onchange = function(){
+      layer.kind = sK.value;
+      if (layer.kind === 'piece') { layer.piece = 'molihua'; layer.gain = 1.0; }
+      else { layer.midi = 72; layer.count = 4; layer.gap = 2.0; layer.dur = 2.5; layer.gain = 0.35; }
+      renderSections();
+    };
+    row.appendChild(sK);
+
+    if (layer.kind === 'piece') {
+      var sP = document.createElement('select');
+      PIECES.filter(function(p){ return p[0] !== 'quartet'; }).forEach(function(p){
+        var e = document.createElement('option'); e.value = p[0]; e.textContent = p[1];
+        if (layer.piece === p[0]) e.selected = true;
+        sP.appendChild(e);
+      });
+      sP.onchange = function(){ layer.piece = sP.value; };
+      row.appendChild(sP);
+    } else {
+      row.appendChild(numInput(layer.midi, 36, 96, 1, function(v){ layer.midi = v; }));
+      row.appendChild(numInput(layer.count, 1, 16, 1, function(v){ layer.count = v; }));
+      row.appendChild(numInput(layer.gap, 0.3, 6, 0.1, function(v){ layer.gap = v; }));
+    }
+    row.appendChild(numInput(layer.gain, 0, 2, 0.05, function(v){ layer.gain = v; }));
+
+    var rm = el('button', '', '×');
+    rm.onclick = onRemove;
+    row.appendChild(rm);
+    return row;
+  }
+
   function renderSections(){
     var box = $('secList');
     box.innerHTML = '';
@@ -310,7 +359,7 @@
 
       var l1 = el('div', 'line');
       var selK = document.createElement('select');
-      [['piece', '整曲'], ['note', '单音']].forEach(function(o){
+      [['piece', '整曲'], ['note', '单音'], ['stack', '多轨']].forEach(function(o){
         var e = document.createElement('option'); e.value = o[0]; e.textContent = o[1];
         if (s.kind === o[0]) e.selected = true;
         selK.appendChild(e);
@@ -318,41 +367,70 @@
       selK.onchange = function(){
         s.kind = selK.value;
         if (s.kind === 'piece') { s.piece = 'molihua'; s.gain = 1.0; }
+        else if (s.kind === 'stack') {
+          s.layers = s.layers || [
+            { kind:'piece', timbre:'erhu', piece:'molihua', gain:1.0 },
+            { kind:'note', timbre:'bell', midi:60, count:6, gap:2.0, dur:2.5, gain:0.35 }
+          ];
+        }
         else { s.midi = 72; s.count = 3; s.gap = 1.9; s.dur = 2.6; s.gain = 0.9; }
         renderSections();
       };
       l1.appendChild(selK);
 
-      var selT = fillSources(document.createElement('select'), s.timbre);
-      selT.onchange = function(){ s.timbre = selT.value; };
-      l1.appendChild(selT);
+      if (s.kind !== 'stack') {
+        var selT = fillSources(document.createElement('select'), s.timbre);
+        selT.onchange = function(){ s.timbre = selT.value; };
+        l1.appendChild(selT);
+      } else {
+        l1.appendChild(el('span', '', '（多轨叠加）'));
+      }
       d.appendChild(l1);
 
-      var l2 = el('div', 'line');
-      if (s.kind === 'notes') {
-        l2.appendChild(el('span', '', '乐谱导入 · ' + ((s.notes || []).length) + ' 个音'));
-        var rm2 = el('button', '', '×');
-        rm2.style.cssText = 'padding:1px 6px;font-size:10.5px;background:none;color:var(--ink2);border:1px solid var(--rule);border-radius:2px;cursor:pointer';
-        rm2.onclick = function(){ sections.splice(i, 1); renderSections(); };
-        l2.appendChild(rm2);
-      } else if (s.kind === 'piece') {
-        var selP = document.createElement('select');
-        PIECES.filter(function(p){ return p[0] !== 'quartet'; }).forEach(function(p){
-          var e = document.createElement('option'); e.value = p[0]; e.textContent = p[1];
-          if (s.piece === p[0]) e.selected = true;
-          selP.appendChild(e);
+      if (s.kind === 'stack') {
+        var layersBox = el('div', 'layers');
+        (s.layers || []).forEach(function(layer, j){
+          layersBox.appendChild(layerRow(layer, function(){
+            s.layers.splice(j, 1);
+            renderSections();
+          }));
         });
-        selP.onchange = function(){ s.piece = selP.value; };
-        l2.appendChild(selP);
-        l2.appendChild(numInput(s.gain, 0, 2, 0.05, function(v){ s.gain = v; }));
+        d.appendChild(layersBox);
+        var addL = el('button', '', '+ 层');
+        addL.style.cssText = 'padding:2px 8px;font-size:10.5px;background:none;color:var(--ink2);border:1px solid var(--rule);border-radius:2px;cursor:pointer;margin-bottom:4px';
+        addL.onclick = function(){
+          s.layers = s.layers || [];
+          s.layers.push({ kind:'note', timbre:'flute', midi:84, count:4, gap:3.0, dur:1.8, gain:0.25 });
+          renderSections();
+        };
+        d.appendChild(addL);
       } else {
-        l2.appendChild(numInput(s.midi, 48, 96, 1, function(v){ s.midi = v; }));
-        l2.appendChild(numInput(s.count, 1, 8, 1, function(v){ s.count = v; }));
-        l2.appendChild(numInput(s.gap, 0.3, 4, 0.1, function(v){ s.gap = v; }));
-        l2.appendChild(numInput(s.dur, 0.5, 8, 0.1, function(v){ s.dur = v; }));
-        l2.appendChild(numInput(s.gain, 0, 2, 0.05, function(v){ s.gain = v; }));
+        var l2 = el('div', 'line');
+        if (s.kind === 'notes') {
+          l2.appendChild(el('span', '', '乐谱导入 · ' + ((s.notes || []).length) + ' 个音'));
+          var rm2 = el('button', '', '×');
+          rm2.style.cssText = 'padding:1px 6px;font-size:10.5px;background:none;color:var(--ink2);border:1px solid var(--rule);border-radius:2px;cursor:pointer';
+          rm2.onclick = function(){ sections.splice(i, 1); renderSections(); };
+          l2.appendChild(rm2);
+        } else if (s.kind === 'piece') {
+          var selP = document.createElement('select');
+          PIECES.filter(function(p){ return p[0] !== 'quartet'; }).forEach(function(p){
+            var e = document.createElement('option'); e.value = p[0]; e.textContent = p[1];
+            if (s.piece === p[0]) e.selected = true;
+            selP.appendChild(e);
+          });
+          selP.onchange = function(){ s.piece = selP.value; };
+          l2.appendChild(selP);
+          l2.appendChild(numInput(s.gain, 0, 2, 0.05, function(v){ s.gain = v; }));
+        } else {
+          l2.appendChild(numInput(s.midi, 48, 96, 1, function(v){ s.midi = v; }));
+          l2.appendChild(numInput(s.count, 1, 8, 1, function(v){ s.count = v; }));
+          l2.appendChild(numInput(s.gap, 0.3, 4, 0.1, function(v){ s.gap = v; }));
+          l2.appendChild(numInput(s.dur, 0.5, 8, 0.1, function(v){ s.dur = v; }));
+          l2.appendChild(numInput(s.gain, 0, 2, 0.05, function(v){ s.gain = v; }));
+        }
+        d.appendChild(l2);
       }
-      d.appendChild(l2);
 
       var ops = el('div', 'ops');
       var up = el('button', '', '↑');
@@ -412,10 +490,21 @@
         };
         if ($('useArrange').checked && sections.length) {
           b.sections = sections.map(function(s){
-            var o = { kind: s.kind, timbre: s.timbre, gain: s.gain, pad: s.pad };
-            if (s.kind === 'note') { o.midi = s.midi; o.count = s.count; o.gap = s.gap; o.dur = s.dur; }
-            else if (s.kind === 'notes') { o.notes = s.notes; }
-            else { o.piece = s.piece; }
+            var o = { kind: s.kind, gain: s.gain, pad: s.pad };
+            if (s.kind === 'stack') {
+              o.layers = (s.layers || []).map(function(l){
+                var lo = { kind: l.kind, timbre: l.timbre, gain: l.gain };
+                if (l.kind === 'note') { lo.midi = l.midi; lo.count = l.count; lo.gap = l.gap; lo.dur = l.dur; }
+                else if (l.kind === 'notes') { lo.notes = l.notes; }
+                else { lo.piece = l.piece; }
+                return lo;
+              });
+            } else {
+              o.timbre = s.timbre;
+              if (s.kind === 'note') { o.midi = s.midi; o.count = s.count; o.gap = s.gap; o.dur = s.dur; }
+              else if (s.kind === 'notes') { o.notes = s.notes; }
+              else { o.piece = s.piece; }
+            }
             return o;
           });
         } else {
