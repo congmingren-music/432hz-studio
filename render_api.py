@@ -42,10 +42,10 @@ BUILTIN = {
         "label": "二胡",
         "dir": os.path.join(SAMPLES, "erhu"),
         "pattern": r"erhu_{key}_sus_rr1\.wav$",
-        "hz": {"d5": 582.92, "eb5": 621.87, "e5": 664.22, "f5": 699.57, "gb5": 735.54,
-               "g5": 786.15, "ab5": 831.53, "a5": 885.90, "bb5": 934.52, "b5": 989.50,
-               "c6": 1054.29, "db6": 1104.82, "d6": 1174.66, "eb6": 1244.51,
-               "gb6": 1476.03, "ab6": 1663.06},
+        "hz": {"d5": 292.39, "eb5": 310.40, "e5": 330.36, "f5": 349.77, "gb5": 368.59,
+               "g5": 393.31, "ab5": 415.91, "a5": 442.42, "bb5": 467.48, "b5": 494.33,
+               "c6": 527.51, "db6": 553.92, "d6": 593.59, "eb6": 621.88,
+               "gb6": 739.77, "ab6": 832.92},
         "seek": 0.24,
     },
     "bell": {
@@ -81,6 +81,15 @@ BUILTIN = {
         "hz": {"38": 73.11, "43": 96.69, "45": 110.97, "50": 147.30, "53": 175.07,
                "55": 195.48, "57": 221.03, "60": 262.87, "62": 292.75, "65": 342.29,
                "67": 390.88, "72": 523.30, "74": 587.57, "79": 801.18, "86": 1194.09},
+        "seek": None,
+    },
+    "xiao": {
+        "label": "箫（竖笛近似）",
+        "dir": os.path.join(SAMPLES, "xiao"),
+        # key 直接用文件名，pattern 原样匹配
+        "pattern": r"{key}",
+        # 素材实为 BassRecorder / TenRecorder（竖笛），非真箫；作者以 -xiao 后缀模仿箫的音色
+        "hz": {"BassRecorder_Sus_Fs2_rr1_Main-xiao.flac": 185.06, "BassRecorder_Sus_Gs2_rr1_Main-xiao.flac": 208.65, "BassRecorder_Sus_As2_rr1_Main-xiao.flac": 232.16, "TenRecorder_Sus_C3_rr1_Main-xiao.flac": 261.95, "TenRecorder_Sus_D3_rr1_Main-xiao.flac": 293.62, "TenRecorder_Sus_E3_rr1_Main-xiao.flac": 328.52, "TenRecorder_Sus_Fs3_rr1_Main-xiao.flac": 370.75, "TenRecorder_Sus_Gs3_rr1_Main-xiao.flac": 416.22, "TenRecorder_Sus_As3_rr1_Main-xiao.flac": 466.51, "TenRecorder_Sus_C4_rr1_Main-xiao.flac": 522.70, "TenRecorder_Sus_D4_rr1_Main-xiao.flac": 587.96, "TenRecorder_Sus_E4_rr1_Main-xiao.flac": 659.95, "TenRecorder_Sus_Fs4_rr1_Main-xiao.flac": 741.46, "TenRecorder_Sus_Gs4_rr1_Main-xiao.flac": 830.67, "TenRecorder_Sus_A4_rr1_Main-xiao.flac": 881.31, "TenRecorder_Sus_C5_rr1_Main-xiao.flac": 1046.05},
         "seek": None,
     },
 }
@@ -182,25 +191,32 @@ def analyze_upload(path):
     if seg.size < 2048:
         raise ValueError("采样太短")
 
-    # 在 60–1600 Hz 找最强的低频峰，再用谐波一致性微调
+    # 基频检测：最强峰常常是 2 次/3 次泛音（钢琴、竖笛、古筝尤甚），
+    # 所以把最强峰按整数倍往下折，取「谐波序列能量总和」最大的候选当基频。
     win = np.hanning(seg.size)
     spec = np.abs(np.fft.rfft(seg * win))
     freqs = np.fft.rfftfreq(seg.size, d=1.0 / SR)
     band = (freqs >= 60) & (freqs <= 1600)
+    if not band.any():
+        raise ValueError("测不出基频")
     idxs = np.flatnonzero(band)
-    order = idxs[np.argsort(spec[band])[::-1]]
-    best = None
-    for k in order[:10]:
-        f = freqs[k]
-        score = spec[k]
-        for m in (2, 3):
-            fm = f * m
-            if fm < SR / 2:
-                j = np.argmin(np.abs(freqs - fm))
-                score += 0.4 * spec[max(0, j - 2):j + 3].max()
-        if best is None or score > best[1]:
-            best = (f, score)
-    hz = best[0]
+    peak = float(freqs[idxs[np.argmax(spec[idxs])]])
+
+    best, best_score = peak, -1.0
+    for n in range(1, 9):
+        f = peak / n
+        if f < 55.0:
+            break
+        score = 0.0
+        for k in range(1, 7):
+            fk = f * k
+            if fk > freqs[-1]:
+                break
+            j = int(np.argmin(np.abs(freqs - fk)))
+            score += spec[max(0, j - 2):j + 3].max() / (1.0 + (k - 1) * 0.35)
+        if score > best_score:
+            best, best_score = f, score
+    hz = best
     return float(hz), int(round(midi_of(hz)))
 
 
@@ -459,7 +475,20 @@ def _render_layer(tracks, layer, start, tmp, tag, sc, on_note=None):
         return cur
 
     if kind == "notes":
-        notes = [(int(n[0]), float(n[1])) for n in layer.get("notes", [])]
+        raw = layer.get("notes", [])
+        # 三元组 [midi, dur, start] 用谱面绝对时间定位（乐谱导入走这条，休止不再被压平）；
+        # 二元组 [midi, dur] 保持旧的顺序累加，兼容手工编排与历史数据。
+        if raw and len(raw[0]) >= 3:
+            end = start
+            for k, n in enumerate(raw):
+                m, d, st = int(n[0]), float(n[1]), float(n[2])
+                sig = _note_audio(src, m, max(0.9, d * 1.9), f"{tag}_{k}", tmp) * gain
+                tracks.append((start + st * sc, sig))
+                end = max(end, start + (st + d) * sc)
+                if on_note:
+                    on_note()
+            return end
+        notes = [(int(n[0]), float(n[1])) for n in raw]
     else:
         notes = PIECES.get(layer.get("piece", "molihua"), {}).get("notes")
     if not notes:
