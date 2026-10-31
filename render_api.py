@@ -4,6 +4,7 @@
 参数化的采样渲染核心，供 HTTP 服务调用。
 支持：内置音源（二胡/编钟/长笛/钢琴）+ 用户上传采样；曲目与速度可调。
 """
+import datetime
 import json
 import math
 import os
@@ -156,6 +157,49 @@ def midi_of(freq):
     return 69 + 12 * math.log2(freq / 440.0)
 
 
+# ── 古琴曲库（guqin/*.xml，MusicXML，按需解析并缓存）──
+GUQIN_DIR = os.path.join(BASE, "guqin")
+_GUQIN_CACHE = {}
+
+
+def guqin_pieces():
+    """扫描 guqin/ 目录，返回 {id: {label, notes}}。首次调用解析，之后走缓存。"""
+    if _GUQIN_CACHE:
+        return _GUQIN_CACHE
+    if not os.path.isdir(GUQIN_DIR):
+        return _GUQIN_CACHE
+    for name in sorted(os.listdir(GUQIN_DIR)):
+        if not name.lower().endswith((".xml", ".musicxml")):
+            continue
+        pid = "guqin-" + os.path.splitext(name)[0]
+        try:
+            import musicxml
+            tracks, _meta = musicxml.parse_musicxml_tracks(os.path.join(GUQIN_DIR, name))
+            main = musicxml.pick_main_track(tracks)
+            if not main or not main["notes"]:
+                continue
+            # 转成项目通用的 [[midi, dur, start], ...]，保留绝对时间
+            notes = [[int(n["midi"]), float(n["dur"]), float(n["start"])] for n in main["notes"]]
+            _GUQIN_CACHE[pid] = {"label": os.path.splitext(name)[0], "notes": notes}
+        except Exception:
+            continue
+    return _GUQIN_CACHE
+
+
+def piece_notes(pid):
+    """取曲目音符：先查内置 PIECES，再查古琴曲库。"""
+    if pid in PIECES:
+        return PIECES[pid]["notes"]
+    return (guqin_pieces().get(pid) or {}).get("notes")
+
+
+def all_pieces():
+    """给界面用的曲目清单 [{id, label, group}]。"""
+    out = [{"id": k, "label": v["label"], "group": "内置"} for k, v in PIECES.items() if k != "quartet"]
+    out += [{"id": k, "label": v["label"], "group": "古琴"} for k, v in guqin_pieces().items()]
+    return out
+
+
 def user_sources():
     """扫描用户上传的采样包，返回 {id: {label, samples:[{midi, hz, path}]}}。"""
     _ensure_dirs()
@@ -261,21 +305,39 @@ def _nearest(samples, midi):
     return best
 
 
+def _out_name(prefix, tempo):
+    """输出文件名带时间戳，避免同速度重复渲染把上一次成品覆盖掉。
+
+    ⚠️ Windows 文件名里 `:` 是 NTFS 数据流分隔符，写出来的文件主名不存在，必须清掉。
+    """
+    safe = re.sub(r"[^\w\-\u4e00-\u9fff]+", "_", prefix).strip("_")
+    return f"{safe}-{int(tempo * 100)}-{datetime.datetime.now():%Y%m%d-%H%M%S}.wav"
+
+
 def render_piece(timbre, piece, tempo=1.0, ring=2.0, on_progress=None):
     _ensure_dirs()
     src = _resolve_source(timbre)
-    notes = PIECES.get(piece, {}).get("notes")
+    notes = piece_notes(piece)
     if not notes:
         raise KeyError(f"未知曲目 {piece}")
 
     tmp_dir = os.path.join(OUT_DIR, "_tmp")
     os.makedirs(tmp_dir, exist_ok=True)
 
-    total = sum(d for _m, d in notes) * (1.0 / tempo) + 2.0
+    # 二元组 [midi, dur] 顺序累加；三元组 [midi, dur, start] 按谱面绝对时间定位（古琴曲库走这条）
+    has_start = bool(notes) and len(notes[0]) >= 3
+    sc = 1.0 / tempo
+    if has_start:
+        span = max(float(n[2]) + float(n[1]) for n in notes)
+        total = span * sc + ring + 2.0
+    else:
+        total = sum(float(n[1]) for n in notes) * sc + 2.0
     buf = np.zeros(int(total * SR) + SR * 4, dtype=np.float64)
 
     cursor = 0.0
-    for i, (midi, dur) in enumerate(notes):
+    for i, n in enumerate(notes):
+        midi, dur = int(n[0]), float(n[1])
+        start_t = float(n[2]) if has_start else cursor
         s = _nearest(src["samples"], midi)
         target = 432.0 * 2 ** ((midi - 69) / 12.0)
         rate = target / s["hz"]
@@ -299,14 +361,16 @@ def render_piece(timbre, piece, tempo=1.0, ring=2.0, on_progress=None):
         _, sig = read_wav(out)
         os.remove(out)
 
-        i0 = int(cursor * SR)
+        i0 = int(start_t * sc * SR)
         i1 = min(i0 + sig.size, buf.size)
         buf[i0:i1] += sig[:i1 - i0]
-        cursor += dur * (1.0 / tempo) + 0.03
+        if not has_start:
+            cursor += dur * sc + 0.03
         if on_progress:
             on_progress(int((i + 1) / len(notes) * 100))
 
-    used = int((cursor + ring + 0.8) * SR)
+    end_t = (max(float(n[2]) + float(n[1]) for n in notes) * sc) if has_start else cursor
+    used = int((end_t + ring + 0.8) * SR)
     buf = buf[:min(used, buf.size)]
     ntail = int(SR * 1.2)
     if buf.size > ntail:
@@ -316,7 +380,7 @@ def render_piece(timbre, piece, tempo=1.0, ring=2.0, on_progress=None):
         buf *= 0.85 / peak
     pcm = (np.clip(buf, -1, 1) * 32767).astype(np.int16)
 
-    name = f"studio-{timbre}-{piece}-{int(tempo*100)}.wav"
+    name = _out_name(f"studio-{timbre}-{piece}", tempo)
     path = os.path.join(OUT_DIR, name)
     with wave.open(path, "wb") as w:
         w.setnchannels(1)
@@ -430,7 +494,7 @@ def render_quartet(tempo=1.0, ring=2.0, on_progress=None):
         buf *= 0.85 / peak
     pcm = (np.clip(buf, -1, 1) * 32767).astype(np.int16)
 
-    name = f"studio-quartet-{int(tempo*100)}.wav"
+    name = _out_name("studio-quartet", tempo)
     path = os.path.join(OUT_DIR, name)
     with wave.open(path, "wb") as w:
         w.setnchannels(1)
@@ -451,7 +515,47 @@ def _layer_note_count(layer):
         return int(layer.get("count", 1))
     if k == "notes":
         return len(layer.get("notes", []))
-    return len(PIECES.get(layer.get("piece"), {}).get("notes", []))
+    return len(piece_notes(layer.get("piece")) or [])
+
+
+def _layer_seconds(layer, sc):
+    """与 _render_layer 口径一致地估算一个 layer 的时长（秒）。"""
+    kind = layer.get("kind", "piece")
+    if kind == "note":
+        return max(1, int(layer.get("count", 1))) * float(layer.get("gap", 1.9)) * sc
+    if kind == "notes":
+        raw = layer.get("notes", [])
+        if not raw:
+            return 0.0
+        if len(raw[0]) >= 3:
+            return max(float(n[2]) + float(n[1]) for n in raw) * sc
+        return sum(float(n[1]) + 0.06 for n in raw) * sc
+    notes = piece_notes(layer.get("piece", "molihua")) or []
+    if not notes:
+        return 0.0
+    if len(notes[0]) >= 3:
+        # 乐谱导入/古琴曲库是 [midi, dur, start]，时长看绝对跨度
+        return max(float(n[2]) + float(n[1]) for n in notes) * sc
+    return sum(float(n[1]) + 0.06 for n in notes) * sc
+
+
+def estimate_sections(sections, tempo=1.0, ring=2.0):
+    """给界面用的时长估算：每段秒数 + 含 pad 与尾部余音的总时长。
+
+    尾部对齐 render_sections 的算法：max(1.2, ring) + 0.4 缓冲，再加 1 秒软尾。
+    """
+    sc = 1.0 / tempo
+    parts = []
+    total = 0.0
+    for sec in sections or []:
+        if sec.get("kind") == "stack":
+            dur = max((_layer_seconds(l, sc) for l in sec.get("layers", [])), default=0.0)
+        else:
+            dur = _layer_seconds(sec, sc)
+        parts.append(round(dur, 2))
+        total += dur + float(sec.get("pad", 0.8)) * sc
+    total += max(1.2, float(ring)) + 1.4
+    return {"sections": parts, "total": round(total, 2)}
 
 
 def _render_layer(tracks, layer, start, tmp, tag, sc, on_note=None):
@@ -490,7 +594,7 @@ def _render_layer(tracks, layer, start, tmp, tag, sc, on_note=None):
             return end
         notes = [(int(n[0]), float(n[1])) for n in raw]
     else:
-        notes = PIECES.get(layer.get("piece", "molihua"), {}).get("notes")
+        notes = piece_notes(layer.get("piece", "molihua"))
     if not notes:
         raise KeyError(f"曲目为空或未知：{layer.get('piece') or 'notes'}")
 
@@ -564,7 +668,7 @@ def render_sections(sections, tempo=1.0, ring=2.0, on_progress=None):
         buf *= 0.85 / peak
     pcm = (np.clip(buf, -1, 1) * 32767).astype(np.int16)
 
-    name = f"studio-custom-{int(tempo*100)}.wav"
+    name = _out_name("studio-custom", tempo)
     path = os.path.join(OUT_DIR, name)
     with wave.open(path, "wb") as w:
         w.setnchannels(1)
