@@ -82,6 +82,9 @@ BUILTIN = {
         "hz": {"38": 73.11, "43": 96.69, "45": 110.97, "50": 147.30, "53": 175.07,
                "55": 195.48, "57": 221.03, "60": 262.87, "62": 292.75, "65": 342.29,
                "67": 390.88, "72": 523.30, "74": 587.57, "79": 801.18, "86": 1194.09},
+        # 谐波纯度实测（2026-10-31）：这四个采样最强成分不在整数倍泛音上，
+        # 渲染出来发「电铃」般的金属感，选样时跳过，改用相邻干净采样变调。
+        "avoid": {"43", "60", "79", "86"},
         "seek": None,
     },
     "xiao": {
@@ -151,6 +154,28 @@ def peak_near(sig, sr, center, width=0.07):
     else:
         d = 0.0
     return float((k + d) * sr / sig.size)
+
+
+# 音色补偿：高音区古筝弦本身偏亮（听着像「电铃」），低音区基频弱（听着发闷）。
+# 这两个参数是听感调节旋钮，0 表示不处理；可用 tune_tone.py 做 A/B。
+TONE = {
+    "bright_midi": 74,     # >= 这个 MIDI 视为高音区
+    "bright_gain": -3.0,   # 高音区高频增益（dB，负数=柔化）
+    "shelf_hz": 7000,      # 高频搁架起点
+    "warm_midi": 50,       # <= 这个 MIDI 视为低音区
+    "warm_gain": 2.5,      # 低音区低频增益（dB，正数=补厚度）
+    "low_hz": 180,         # 低频搁架起点
+}
+
+
+def _tone_filters(midi):
+    """按音高返回音色补偿滤镜（无补偿时返回空列表）。"""
+    out = []
+    if TONE.get("bright_gain") and midi >= TONE["bright_midi"]:
+        out.append(f"highshelf=f={int(TONE['shelf_hz'])}:g={float(TONE['bright_gain']):.1f}")
+    if TONE.get("warm_gain") and midi <= TONE["warm_midi"]:
+        out.append(f"lowshelf=f={int(TONE['low_hz'])}:g={float(TONE['warm_gain']):.1f}")
+    return out
 
 
 def midi_of(freq):
@@ -289,6 +314,7 @@ def _resolve_source(timbre):
             "dir": builtin["dir"],
             "pattern": builtin["pattern"],
             "seek": builtin["seek"],
+            "avoid": builtin.get("avoid", set()),
             "samples": [{"key": k, "hz": v} for k, v in builtin["hz"].items()],
         }
     users = user_sources()
@@ -312,9 +338,11 @@ def _find_file(directory, pattern, key):
     return None
 
 
-def _nearest(samples, midi):
+def _nearest(samples, midi, avoid=()):
+    """选最近采样点；avoid 里的 key 视为质量不合格（非谐波，会发声金属感）跳过。"""
+    pool = [s for s in samples if str(s["key"]) not in avoid] or samples
     best = None
-    for s in samples:
+    for s in pool:
         smidi = midi_of(s["hz"])
         diff = midi - smidi
         if best is None or abs(diff) < abs(best["diff"]):
@@ -355,7 +383,7 @@ def render_piece(timbre, piece, tempo=1.0, ring=2.0, on_progress=None):
     for i, n in enumerate(notes):
         midi, dur = int(n[0]), float(n[1])
         start_t = float(n[2]) if has_start else cursor
-        s = _nearest(src["samples"], midi)
+        s = _nearest(src["samples"], midi, src.get("avoid", ()))
         target = 432.0 * 2 ** ((midi - 69) / 12.0)
         rate = target / s["hz"]
         seg_dur = max(0.9, dur * 1.7) * (1.0 / tempo) + ring * 0.35
@@ -365,11 +393,10 @@ def render_piece(timbre, piece, tempo=1.0, ring=2.0, on_progress=None):
             raise FileNotFoundError(s["key"])
         out = os.path.join(tmp_dir, f"n{i}.wav")
         fade = min(0.6, seg_dur * 0.5)
-        af = (
-            f"aresample={SR},asetrate={int(round(SR * rate))},aresample={SR},"
-            f"atrim=0:{seg_dur:.3f},"
-            f"afade=t=out:st={max(0.0, seg_dur - fade):.3f}:d={fade:.3f}"
-        )
+        parts = [f"aresample={SR}", f"asetrate={int(round(SR * rate))}", f"aresample={SR}"]
+        parts += _tone_filters(midi)
+        parts += [f"atrim=0:{seg_dur:.3f}", f"afade=t=out:st={max(0.0, seg_dur - fade):.3f}:d={fade:.3f}"]
+        af = ",".join(parts)
         cmd = [FFMPEG, "-hide_banner", "-loglevel", "error", "-y"]
         if src["seek"]:
             cmd += ["-ss", str(src["seek"])]
@@ -409,7 +436,7 @@ def render_piece(timbre, piece, tempo=1.0, ring=2.0, on_progress=None):
 
 def _note_audio(src, midi, dur, idx, tmp_dir):
     """渲染单个音，返回 numpy 片段。"""
-    s = _nearest(src["samples"], midi)
+    s = _nearest(src["samples"], midi, src.get("avoid", ()))
     target = 432.0 * 2 ** ((midi - 69) / 12.0)
     rate = target / s["hz"]
     f = _find_file(src["dir"], src["pattern"], s["key"])
@@ -417,11 +444,10 @@ def _note_audio(src, midi, dur, idx, tmp_dir):
         raise FileNotFoundError(s["key"])
     out = os.path.join(tmp_dir, f"n{idx}.wav")
     fade = min(0.6, dur * 0.5)
-    af = (
-        f"aresample={SR},asetrate={int(round(SR * rate))},aresample={SR},"
-        f"atrim=0:{dur:.3f},"
-        f"afade=t=out:st={max(0.0, dur - fade):.3f}:d={fade:.3f}"
-    )
+    parts = [f"aresample={SR}", f"asetrate={int(round(SR * rate))}", f"aresample={SR}"]
+    parts += _tone_filters(midi)
+    parts += [f"atrim=0:{dur:.3f}", f"afade=t=out:st={max(0.0, dur - fade):.3f}:d={fade:.3f}"]
+    af = ",".join(parts)
     cmd = [FFMPEG, "-hide_banner", "-loglevel", "error", "-y"]
     if src["seek"]:
         cmd += ["-ss", str(src["seek"])]
