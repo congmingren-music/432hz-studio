@@ -418,13 +418,60 @@ def render_quartet(tempo=1.0, ring=2.0, on_progress=None):
     return path, len(pcm) / SR, [{"name": n, "at": round(t, 2)} for n, t in stages]
 
 
+def _layer_note_count(layer):
+    k = layer.get("kind", "piece")
+    if k == "note":
+        return int(layer.get("count", 1))
+    if k == "notes":
+        return len(layer.get("notes", []))
+    return len(PIECES.get(layer.get("piece"), {}).get("notes", []))
+
+
+def _render_layer(tracks, layer, start, tmp, tag, sc, on_note=None):
+    """从 start 秒起渲染一个 layer，把 (时刻, 音频) 追加到 tracks，返回结束时刻。"""
+    src = _resolve_source(layer.get("timbre", "erhu"))
+    kind = layer.get("kind", "piece")
+    gain = float(layer.get("gain", 1.0))
+    cur = start
+
+    if kind == "note":
+        count = max(1, int(layer.get("count", 1)))
+        gap = float(layer.get("gap", 1.9))
+        dur = float(layer.get("dur", 2.5))
+        midi = int(layer.get("midi", 72))
+        for k in range(count):
+            sig = _note_audio(src, midi, dur, f"{tag}_{k}", tmp) * gain
+            tracks.append((cur, sig))
+            cur += gap * sc
+            if on_note:
+                on_note()
+        return cur
+
+    if kind == "notes":
+        notes = [(int(n[0]), float(n[1])) for n in layer.get("notes", [])]
+    else:
+        notes = PIECES.get(layer.get("piece", "molihua"), {}).get("notes")
+    if not notes:
+        raise KeyError(f"曲目为空或未知：{layer.get('piece') or 'notes'}")
+
+    for k, (m, d) in enumerate(notes):
+        sig = _note_audio(src, m, max(0.9, d * 1.9), f"{tag}_{k}", tmp) * gain
+        tracks.append((cur, sig))
+        cur += (d + 0.06) * sc
+        if on_note:
+            on_note()
+    return cur
+
+
 def render_sections(sections, tempo=1.0, ring=2.0, on_progress=None):
-    """按数据化编排表渲染。
+    """按数据化编排表渲染（支持多轨叠加）。
 
     sections 每项：
-      kind=note  {timbre, midi, count, gap, dur}
-      kind=piece {timbre, piece, gain}
-    可选 pad（段后留白秒数，默认 0.8）。
+      kind=note   {timbre, midi, count, gap, dur, gain}
+      kind=piece  {timbre, piece, gain}
+      kind=notes  {timbre, notes:[[midi,dur],...], gain}
+      kind=stack  {layers:[上述任一], gain}   ← 多轨：所有 layer 从同一时刻开始
+    所有类型都可带 pad（段后留白秒数，默认 0.8）。
     """
     _ensure_dirs()
     if not sections:
@@ -433,51 +480,33 @@ def render_sections(sections, tempo=1.0, ring=2.0, on_progress=None):
     os.makedirs(tmp, exist_ok=True)
     sc = 1.0 / tempo
 
+    def count_sec(s):
+        if s.get("kind") == "stack":
+            return sum(_layer_note_count(l) for l in s.get("layers", []))
+        return _layer_note_count(s)
+
+    total_notes = sum(count_sec(s) for s in sections) or 1
+    done = [0]
+
+    def tick():
+        done[0] += 1
+        if on_progress:
+            on_progress(min(95, int(done[0] / total_notes * 95)))
+
     tracks = []
     cur = 0.0
-    def _sec_note_count(s):
-        k = s.get("kind", "piece")
-        if k == "note":
-            return int(s.get("count", 1))
-        if k == "notes":
-            return len(s.get("notes", []))
-        return len(PIECES.get(s.get("piece"), {}).get("notes", []))
-
-    total_notes = sum(_sec_note_count(s) for s in sections) or 1
-    done = 0
 
     for idx, sec in enumerate(sections):
-        src = _resolve_source(sec.get("timbre", "erhu"))
-        kind = sec.get("kind", "piece")
-        if kind == "note":
-            count = max(1, int(sec.get("count", 1)))
-            gap = float(sec.get("gap", 1.9))
-            dur = float(sec.get("dur", 2.5))
-            gain = float(sec.get("gain", 0.9))
-            for k in range(count):
-                sig = _note_audio(src, int(sec.get("midi", 72)), dur, f"s{idx}_{k}", tmp) * gain
-                tracks.append((cur, sig))
-                cur += gap * sc
-                done += 1
-                if on_progress:
-                    on_progress(int(done / total_notes * 95))
+        if sec.get("kind") == "stack":
+            start = cur
+            end = start
+            for j, layer in enumerate(sec.get("layers", [])):
+                layer_end = _render_layer(tracks, layer, start, tmp, f"st{idx}_{j}", sc, tick)
+                end = max(end, layer_end)
+            cur = end + float(sec.get("pad", 0.8)) * sc
         else:
-            if kind == "notes":
-                notes = [(int(n[0]), float(n[1])) for n in sec.get("notes", [])]
-            else:
-                piece = sec.get("piece", "molihua")
-                notes = PIECES.get(piece, {}).get("notes")
-            if not notes:
-                raise KeyError(f"曲目为空或未知：{sec.get('piece') or 'notes'}")
-            gain = float(sec.get("gain", 1.0))
-            for k, (m, d) in enumerate(notes):
-                sig = _note_audio(src, m, max(0.9, d * 1.9), f"p{idx}_{k}", tmp) * gain
-                tracks.append((cur, sig))
-                cur += (d + 0.06) * sc
-                done += 1
-                if on_progress:
-                    on_progress(int(done / total_notes * 95))
-        cur += float(sec.get("pad", 0.8)) * sc
+            cur = _render_layer(tracks, sec, cur, tmp, f"s{idx}", sc, tick)
+            cur += float(sec.get("pad", 0.8)) * sc
 
     total = cur + max(1.2, ring) + 0.4
     buf = np.zeros(int(total * SR) + SR, dtype=np.float64)
