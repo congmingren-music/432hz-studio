@@ -157,47 +157,64 @@ def midi_of(freq):
     return 69 + 12 * math.log2(freq / 440.0)
 
 
-# ── 古琴曲库（guqin/*.xml，MusicXML，按需解析并缓存）──
+# ── 古琴曲库（guqin/<曲集>/<曲名>.xml，MusicXML）──
+# 408 首全量解析太慢，所以只建索引（扫文件名），真正解析在 piece_notes() 里按需做并缓存。
 GUQIN_DIR = os.path.join(BASE, "guqin")
-_GUQIN_CACHE = {}
+_GUQIN_INDEX = None
+_GUQIN_NOTES = {}
 
 
-def guqin_pieces():
-    """扫描 guqin/ 目录，返回 {id: {label, notes}}。首次调用解析，之后走缓存。"""
-    if _GUQIN_CACHE:
-        return _GUQIN_CACHE
-    if not os.path.isdir(GUQIN_DIR):
-        return _GUQIN_CACHE
-    for name in sorted(os.listdir(GUQIN_DIR)):
-        if not name.lower().endswith((".xml", ".musicxml")):
-            continue
-        pid = "guqin-" + os.path.splitext(name)[0]
-        try:
-            import musicxml
-            tracks, _meta = musicxml.parse_musicxml_tracks(os.path.join(GUQIN_DIR, name))
-            main = musicxml.pick_main_track(tracks)
-            if not main or not main["notes"]:
-                continue
-            # 转成项目通用的 [[midi, dur, start], ...]，保留绝对时间
-            notes = [[int(n["midi"]), float(n["dur"]), float(n["start"])] for n in main["notes"]]
-            _GUQIN_CACHE[pid] = {"label": os.path.splitext(name)[0], "notes": notes}
-        except Exception:
-            continue
-    return _GUQIN_CACHE
+def guqin_index():
+    """扫描 guqin/ 目录（含一级子目录），返回 {id: {label, album, path}}。"""
+    global _GUQIN_INDEX
+    if _GUQIN_INDEX is not None:
+        return _GUQIN_INDEX
+    idx = {}
+    if os.path.isdir(GUQIN_DIR):
+        for root, _dirs, files in os.walk(GUQIN_DIR):
+            album = "" if os.path.abspath(root) == os.path.abspath(GUQIN_DIR) else os.path.basename(root)
+            for name in sorted(files):
+                if not name.lower().endswith((".xml", ".musicxml")):
+                    continue
+                stem = os.path.splitext(name)[0]
+                pid = f"guqin-{album}-{stem}" if album else f"guqin-{stem}"
+                idx[pid] = {
+                    "label": f"{album} · {stem}" if album else stem,
+                    "album": album or "古琴",
+                    "path": os.path.join(root, name),
+                }
+    _GUQIN_INDEX = idx
+    return idx
 
 
 def piece_notes(pid):
-    """取曲目音符：先查内置 PIECES，再查古琴曲库。"""
+    """取曲目音符：内置 PIECES 直接给；古琴曲按需解析并缓存。"""
     if pid in PIECES:
         return PIECES[pid]["notes"]
-    return (guqin_pieces().get(pid) or {}).get("notes")
+    if pid in _GUQIN_NOTES:
+        return _GUQIN_NOTES[pid]
+    ent = guqin_index().get(pid)
+    if not ent:
+        return None
+    notes = None
+    try:
+        import musicxml
+        tracks, _meta = musicxml.parse_musicxml_tracks(ent["path"])
+        main = musicxml.pick_main_track(tracks)
+        if main and main["notes"]:
+            notes = [[int(n["midi"]), float(n["dur"]), float(n["start"])] for n in main["notes"]]
+    except Exception:
+        notes = None
+    _GUQIN_NOTES[pid] = notes
+    return notes
 
 
 def all_pieces():
     """给界面用的曲目清单 [{id, label, group}]。"""
     out = [{"id": k, "label": v["label"], "group": "内置"} for k, v in PIECES.items() if k != "quartet"]
-    out += [{"id": k, "label": v["label"], "group": "古琴"} for k, v in guqin_pieces().items()]
+    out += [{"id": k, "label": v["label"], "group": v["album"]} for k, v in guqin_index().items()]
     return out
+
 
 
 def user_sources():
