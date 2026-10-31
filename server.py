@@ -206,7 +206,8 @@ class Handler(BaseHTTPRequestHandler):
             meta = {"label": label, "samples": samples}
             with open(os.path.join(d, "meta.json"), "w", encoding="utf-8") as f:
                 json.dump(meta, f, ensure_ascii=False, indent=2)
-            return self._json({"id": name, "count": len(samples), "errors": errors})
+            return self._json({"id": name, "count": len(samples), "errors": errors,
+                               "samples": samples})
 
         if p == "/api/score_parse":
             raw_b64 = str(body.get("data", ""))
@@ -294,6 +295,36 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 return self._json({"error": str(e)[:120]}, 500)
             return self._json({"ok": True, "id": name, "label": label})
+
+        if p == "/api/pack_update":
+            name = re.sub(r"[^\w\-]", "_", str(body.get("id", "")))
+            meta_path = os.path.join(R.USER_DIR, name, "meta.json")
+            if not name or not os.path.exists(meta_path):
+                return self._json({"error": "采样包不存在"}, 404)
+            updates = body.get("samples") or []
+            try:
+                with open(meta_path, encoding="utf-8") as f:
+                    meta = json.load(f)
+                by_file = {s.get("file"): s for s in meta.get("samples", [])}
+                changed = 0
+                for u in updates:
+                    s = by_file.get(str(u.get("file", "")))
+                    if not s:
+                        continue
+                    try:
+                        hz = float(u.get("hz"))
+                    except (TypeError, ValueError):
+                        continue
+                    if not (20.0 <= hz <= 20000.0):
+                        continue
+                    s["hz"] = round(hz, 2)
+                    s["midi"] = int(round(R.midi_of(hz)))
+                    changed += 1
+                with open(meta_path, "w", encoding="utf-8") as f:
+                    json.dump(meta, f, ensure_ascii=False, indent=2)
+            except Exception as e:
+                return self._json({"error": str(e)[:120]}, 500)
+            return self._json({"ok": True, "changed": changed, "samples": meta.get("samples", [])})
 
         return self._json({"error": "not found"}, 404)
 
