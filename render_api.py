@@ -1,10 +1,11 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """432Hz 工作室 · 渲染引擎
 
 参数化的采样渲染核心，供 HTTP 服务调用。
 支持：内置音源（二胡/编钟/长笛/钢琴）+ 用户上传采样；曲目与速度可调。
 """
 import datetime
+import itertools
 import json
 import math
 import os
@@ -339,6 +340,29 @@ def _find_file(directory, pattern, key):
     return None
 
 
+_RR_COUNTER = itertools.count()
+
+
+def _find_files(directory, pattern, key):
+    """同一音高的全部变体（v1/v2 × rr1/rr2/rr3）。只有表里写了 v1/rr1 的正则，这里放宽。"""
+    pat = pattern.replace("{key}", re.escape(key))
+    pat = pat.replace("v1", r"v\d").replace("rr1", r"rr\d")
+    if not os.path.isdir(directory):
+        return []
+    hits = [n for n in os.listdir(directory) if re.search(pat, n)]
+    return [os.path.join(directory, n) for n in sorted(hits)]
+
+
+def _pick_sample_file(src, key):
+    """多 rr 采样时轮换，避免同一音符每次都用同一个取样（重复会显得机械）。"""
+    files = _find_files(src["dir"], src["pattern"], key)
+    if not files:
+        return _find_file(src["dir"], src["pattern"], key)
+    if len(files) == 1:
+        return files[0]
+    return files[next(_RR_COUNTER) % len(files)]
+
+
 def _nearest(samples, midi, avoid=()):
     """选最近采样点；avoid 里的 key 视为质量不合格（非谐波，会发声金属感）跳过。"""
     pool = [s for s in samples if str(s["key"]) not in avoid] or samples
@@ -389,7 +413,7 @@ def render_piece(timbre, piece, tempo=1.0, ring=2.0, on_progress=None):
         rate = target / s["hz"]
         seg_dur = max(0.9, dur * 1.7) * (1.0 / tempo) + ring * 0.35
 
-        f = _find_file(src["dir"], src["pattern"], s["key"])
+        f = _pick_sample_file(src, s["key"])
         if not f:
             raise FileNotFoundError(s["key"])
         out = os.path.join(tmp_dir, f"n{i}.wav")
@@ -440,7 +464,7 @@ def _note_audio(src, midi, dur, idx, tmp_dir):
     s = _nearest(src["samples"], midi, src.get("avoid", ()))
     target = 432.0 * 2 ** ((midi - 69) / 12.0)
     rate = target / s["hz"]
-    f = _find_file(src["dir"], src["pattern"], s["key"])
+    f = _pick_sample_file(src, s["key"])
     if not f:
         raise FileNotFoundError(s["key"])
     out = os.path.join(tmp_dir, f"n{idx}.wav")
