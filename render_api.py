@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """432Hz 工作室 · 渲染引擎
 
 参数化的采样渲染核心，供 HTTP 服务调用。
@@ -237,8 +237,23 @@ GAIN_BY = {
     "suona": 1.0,
 }
 
-# 整曲输出增益（dB）：再往上提一点整体响度，配合限幅防削波
-OUTPUT_GAIN_DB = 5.0
+# 整曲输出增益（dB）：再往上提一点整体响度。
+# ⚠️ 2026-11-01 用 tanh 做软限幅被判定「有压扁的感觉」——因为 tanh 是**全段连续压缩**，
+# 不是只在峰值处介入。改成只压缩超过阈值的那部分（软膝），其余样本原样保留。
+OUTPUT_GAIN_DB = 3.0
+LIMIT_THRESHOLD = 0.92   # 超过这个值才压缩
+
+
+def _soft_limit(x, thresh=LIMIT_THRESHOLD):
+    """软膝限幅：只压超过 thresh 的样本，其余不动。避免整段被压扁。"""
+    absx = np.abs(x)
+    over = absx > thresh
+    if not over.any():
+        return x
+    out = x.copy()
+    # 超出部分按 1/4 斜率收进去，最高映射到 0.99
+    out[over] = np.sign(x[over]) * (thresh + (absx[over] - thresh) * 0.25)
+    return np.clip(out, -0.99, 0.99)
 
 
 def _tone_filters(midi, timbre=None):
@@ -513,7 +528,7 @@ def render_piece(timbre, piece, tempo=1.0, ring=2.0, on_progress=None,
     has_start = bool(notes) and len(notes[0]) >= 3
     sc = 1.0 / tempo
     # 保留完整余音时，缓冲区要额外留出余音长度，否则每个音都被尾部截掉
-    tail_pad = float(TAIL["min_keep"]) if TAIL.get("on") else 0.0
+    tail_pad = _tail_max()
     if has_start:
         span = max(float(n[2]) + float(n[1]) for n in notes)
         total = span * sc + ring + 2.0 + tail_pad
@@ -553,7 +568,7 @@ def render_piece(timbre, piece, tempo=1.0, ring=2.0, on_progress=None,
 
     end_t = (max(float(n[2]) + float(n[1]) for n in notes) * sc) if has_start else cursor
     # 保留完整余音时，结尾要留出余响，否则刚叠起来的尾韵又被裁掉
-    used = int((end_t + ring + 0.8 + (float(TAIL["min_keep"]) if TAIL.get("on") else 0.0)) * SR)
+    used = int((end_t + ring + 0.8 + _tail_max()) * SR)
     buf = buf[:min(used, buf.size)]
     ntail = int(SR * 1.2)
     if buf.size > ntail:
@@ -561,10 +576,10 @@ def render_piece(timbre, piece, tempo=1.0, ring=2.0, on_progress=None,
     peak = float(np.max(np.abs(buf))) if buf.size else 0.0
     if peak > 0:
         buf *= 0.85 / peak
-    # 整曲增益：提到接近常规音乐响度；用软限幅防削波（硬 clip 会出咔哒）
+    # 整曲增益：提到接近常规音乐响度；只在峰值超过阈值处做软膝限幅
     if OUTPUT_GAIN_DB:
         buf *= 10 ** (float(OUTPUT_GAIN_DB) / 20.0)
-        buf = np.tanh(buf * 1.05) / np.tanh(1.05)
+    buf = _soft_limit(buf)
     pcm = (np.clip(buf, -1, 1) * 32767).astype(np.int16)
 
     name = _out_name(f"studio-{timbre}-{piece}", tempo)
@@ -604,9 +619,35 @@ TAIL = {
     # 没有保留隐在其他音之后的那段余震」。改法：不再按音符时长截断采样，
     # 而是保留采样的**完整余音**，只在最末尾做一次长淡出，让相邻音的余响自然交叠。
     "on": True,
-    "min_keep": 6.0,     # 至少保留这么长的余音（秒）；采样比这长就保留到末尾
+    "min_keep": 3.5,     # 固定模式下的余音长度（秒）；采样比这长就保留到末尾
     "tail_fade": 1.2,    # 末尾淡出长度（秒）
+    # 动态余音：低音区能量"堵"，余响互相干扰最重（佩兰后半段 6 秒余音时曾有 22 个音同时响），
+    # 所以低音留短、高音留长。开启后按 midi 取 low/mid/high 三档。
+    "dynamic": True,
+    "low_midi": 60, "low_keep": 2.2,    # < C4：短
+    "high_midi": 72, "high_keep": 5.0,  # >= C5：长
+    "mid_keep": 3.2,                    # C4–B4：中
 }
+
+
+def _tail_keep(midi):
+    """按音高决定这个音保留多长的余音（秒）。"""
+    if not TAIL.get("dynamic"):
+        return float(TAIL["min_keep"])
+    if midi < int(TAIL["low_midi"]):
+        return float(TAIL["low_keep"])
+    if midi >= int(TAIL["high_midi"]):
+        return float(TAIL["high_keep"])
+    return float(TAIL["mid_keep"])
+
+
+def _tail_max():
+    """所有可能余音长度里的最大值，用于分配缓冲区。"""
+    if not TAIL.get("on"):
+        return 0.0
+    if not TAIL.get("dynamic"):
+        return float(TAIL["min_keep"])
+    return max(float(TAIL["low_keep"]), float(TAIL["mid_keep"]), float(TAIL["high_keep"]))
 
 
 def _render_one(src, sample, midi, dur, tmp_dir, tag):
@@ -632,8 +673,8 @@ def _render_one(src, sample, midi, dur, tmp_dir, tag):
     parts += _notch_filters(sample["key"], target)
     parts += ["afade=t=in:st=0:d=0.008"]
     if TAIL.get("on"):
-        # 保留全长；末尾 1.2s 淡出（采样比 min_keep 短时也不至于戛然而止）
-        keep = max(float(TAIL["min_keep"]), dur)
+        # 保留余音；长度按音高动态取（低音短、高音长）
+        keep = max(_tail_keep(midi), dur)
         parts += [f"atrim=0:{keep:.3f}",
                   f"afade=t=out:st={max(0.0, keep - float(TAIL['tail_fade'])):.3f}"
                   f":d={float(TAIL['tail_fade']):.3f}"]
