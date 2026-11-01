@@ -160,6 +160,19 @@
       <div class="row" id="combLvlRow" style="display:none"><label>腔体反馈</label>
         <input type="range" id="combLevel" min="0.05" max="0.6" step="0.05" value="0.25"><span class="val" id="combLevelV">0.25</span>
       </div>
+      <div class="row" style="margin-top:10px"><label>余音·低音区</label>
+        <input type="range" id="tailLow" min="0.5" max="6" step="0.1" value="2.2"><span class="val" id="tailLowV">2.2s</span>
+      </div>
+      <div class="row"><label>余音·中音区</label>
+        <input type="range" id="tailMid" min="0.5" max="8" step="0.1" value="3.2"><span class="val" id="tailMidV">3.2s</span>
+      </div>
+      <div class="row"><label>余音·高音区</label>
+        <input type="range" id="tailHigh" min="0.5" max="10" step="0.1" value="5"><span class="val" id="tailHighV">5.0s</span>
+      </div>
+      <div class="row"><label>余音·淡出</label>
+        <input type="range" id="tailFade" min="0.2" max="3" step="0.1" value="1.2"><span class="val" id="tailFadeV">1.2s</span>
+      </div>
+      <div class="log" id="tailHint" style="margin-top:4px">低音区能量"堵"，余音留短；高音区留长会更自然。</div>
       <div class="log" id="styleHint" style="margin-top:6px"></div>
 
       <label class="chk" style="margin-top:14px"><input type="checkbox" id="useArrange"> 使用自定义编排</label>
@@ -849,6 +862,23 @@
     $('combLevelV').textContent = parseFloat(this.value).toFixed(2);
     postStyle({comb: {level: parseFloat(this.value)}});
   };
+  // 余音四个滑块
+  $('tailLow').oninput = function(){
+    $('tailLowV').textContent = parseFloat(this.value).toFixed(1) + 's';
+    postStyle({tail: {low_keep: parseFloat(this.value)}});
+  };
+  $('tailMid').oninput = function(){
+    $('tailMidV').textContent = parseFloat(this.value).toFixed(1) + 's';
+    postStyle({tail: {mid_keep: parseFloat(this.value)}});
+  };
+  $('tailHigh').oninput = function(){
+    $('tailHighV').textContent = parseFloat(this.value).toFixed(1) + 's';
+    postStyle({tail: {high_keep: parseFloat(this.value)}});
+  };
+  $('tailFade').oninput = function(){
+    $('tailFadeV').textContent = parseFloat(this.value).toFixed(1) + 's';
+    postStyle({tail: {tail_fade: parseFloat(this.value)}});
+  };
   (function initStyle(){
     styleRows();
     fetch('/api/style').then(function(r){ return r.json(); }).then(function(d){
@@ -856,6 +886,12 @@
       $('beatCents').value = d.beat.cents; $('beatCentsV').textContent = d.beat.cents.toFixed(1) + ' 音分';
       $('combDelay').value = d.comb.delay_ms; $('combDelayV').textContent = d.comb.delay_ms.toFixed(1) + 'ms';
       $('combLevel').value = d.comb.level; $('combLevelV').textContent = d.comb.level.toFixed(2);
+      if (d.tail) {
+        $('tailLow').value = d.tail.low_keep; $('tailLowV').textContent = d.tail.low_keep.toFixed(1) + 's';
+        $('tailMid').value = d.tail.mid_keep; $('tailMidV').textContent = d.tail.mid_keep.toFixed(1) + 's';
+        $('tailHigh').value = d.tail.high_keep; $('tailHighV').textContent = d.tail.high_keep.toFixed(1) + 's';
+        $('tailFade').value = d.tail.tail_fade; $('tailFadeV').textContent = d.tail.tail_fade.toFixed(1) + 's';
+      }
       if (d.beat.on && d.comb.on) $('styleSel').value = 'rich';
       else if (d.beat.on) $('styleSel').value = 'alive';
       else if (d.comb.on) $('styleSel').value = 'body';
