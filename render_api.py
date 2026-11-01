@@ -102,6 +102,17 @@ BUILTIN = {
         "hz": {"BassRecorder_Sus_Fs2_rr1_Main-xiao.flac": 185.06, "BassRecorder_Sus_Gs2_rr1_Main-xiao.flac": 208.65, "BassRecorder_Sus_As2_rr1_Main-xiao.flac": 232.16, "TenRecorder_Sus_C3_rr1_Main-xiao.flac": 261.95, "TenRecorder_Sus_D3_rr1_Main-xiao.flac": 293.62, "TenRecorder_Sus_E3_rr1_Main-xiao.flac": 328.52, "TenRecorder_Sus_Fs3_rr1_Main-xiao.flac": 370.75, "TenRecorder_Sus_Gs3_rr1_Main-xiao.flac": 416.22, "TenRecorder_Sus_As3_rr1_Main-xiao.flac": 466.51, "TenRecorder_Sus_C4_rr1_Main-xiao.flac": 522.70, "TenRecorder_Sus_D4_rr1_Main-xiao.flac": 587.96, "TenRecorder_Sus_E4_rr1_Main-xiao.flac": 659.95, "TenRecorder_Sus_Fs4_rr1_Main-xiao.flac": 741.46, "TenRecorder_Sus_Gs4_rr1_Main-xiao.flac": 830.67, "TenRecorder_Sus_A4_rr1_Main-xiao.flac": 881.31, "TenRecorder_Sus_C5_rr1_Main-xiao.flac": 1046.05},
         "seek": None,
     },
+    "suona": {
+        "label": "唢呐",
+        "dir": os.path.join(SAMPLES, "suona"),
+        "pattern": r"suona-{key}-v\d\.flac$",
+        # 2026-11-01 新增。取自 XSXB 的 suona-oboe，只下了持续音层（9 个音高，C4–F6 段）。
+        # 音高来自 sfz 的 pitch_keycenter（= 文件名音名 MIDI + 12），基频用理论值：
+        # 实测严重受强泛音干扰（A#2 的 1167 Hz 是 233 Hz 的第 5 泛音），故不采信自动检测。
+        "hz": {"58": 233.08, "62": 293.66, "65": 349.23, "70": 466.16,
+               "74": 587.33, "77": 698.46, "82": 932.33, "86": 1174.66, "89": 1396.91},
+        "seek": None,
+    },
 }
 
 # ── 曲目：MIDI + 时长 ──
@@ -390,9 +401,17 @@ def _out_name(prefix, tempo):
     return f"{safe}-{int(tempo * 100)}-{datetime.datetime.now():%Y%m%d-%H%M%S}.wav"
 
 
-def render_piece(timbre, piece, tempo=1.0, ring=2.0, on_progress=None):
+def render_piece(timbre, piece, tempo=1.0, ring=2.0, on_progress=None,
+                 alt=None, alt_from=81, alt_to=None):
+    """整曲渲染。
+
+    alt/alt_from/alt_to：**高音段换乐器**。旋律的 midi 落在 [alt_from, alt_to] 区间时
+    改用 alt 这个音源弹（默认向上不限）。
+    用途：古筝在 A5 以上采样失真严重（谐波 35%），而唢呐/长笛在高音区干净得多。
+    """
     _ensure_dirs()
     src = _resolve_source(timbre)
+    alt_src = _resolve_source(alt) if alt else None
     notes = piece_notes(piece)
     if not notes:
         raise KeyError(f"未知曲目 {piece}")
@@ -415,7 +434,11 @@ def render_piece(timbre, piece, tempo=1.0, ring=2.0, on_progress=None):
         midi, dur = int(n[0]), float(n[1])
         start_t = float(n[2]) if has_start else cursor
         seg_dur = max(0.9, dur * 1.7) * (1.0 / tempo) + ring * 0.35
-        sig = _note_audio(src, midi, seg_dur, f"{i}", tmp_dir)
+        # 高音段换乐器：落在 [alt_from, alt_to) 的音交给 alt 音源
+        use_src = src
+        if alt_src is not None and midi >= alt_from and (alt_to is None or midi < alt_to):
+            use_src = alt_src
+        sig = _note_audio(use_src, midi, seg_dur, f"{i}", tmp_dir)
 
         i0 = int(start_t * sc * SR)
         i1 = min(i0 + sig.size, buf.size)
