@@ -174,7 +174,9 @@ def peak_near(sig, sr, center, width=0.07):
 
 
 # 音色补偿：高音区古筝弦本身偏亮（听着像「电铃」），低音区基频弱（听着发闷）。
-# 这两个参数是听感调节旋钮，0 表示不处理；可用 tune_tone.py 做 A/B。
+# ⚠️ 这些补丁是**专门为古筝调的**。2026-11-01 实测：套到唢呐身上会把它的低频压掉 7 dB
+# （−36.6 → −29.7 dB），长笛/箫同理。所以只有 TONE_BY 里列出的音源才套补丁，其余中性。
+# 0 表示不处理；可用 tune_tone.py 做 A/B。
 TONE = {
     "bright_midi": 74,     # >= 这个 MIDI 视为高音区
     "bright_gain": -3.0,   # 高音区高频增益（dB，负数=柔化）
@@ -184,9 +186,15 @@ TONE = {
     "low_hz": 180,         # 低频搁架起点
 }
 
+# 哪些音源套用上面的补丁。古筝是它服务的对象，其他音源一律中性——
+# 证据：关掉补丁后唢呐低频回升 6.9 dB，音色才恢复它自己的胸腔共鸣。
+TONE_BY = {"guzheng"}
 
-def _tone_filters(midi):
-    """按音高返回音色补偿滤镜（无补偿时返回空列表）。"""
+
+def _tone_filters(midi, timbre=None):
+    """按音高返回音色补偿滤镜。只有 TONE_BY 白名单里的音源才套用。"""
+    if timbre is not None and timbre not in TONE_BY:
+        return []
     out = []
     if TONE.get("bright_gain") and midi >= TONE["bright_midi"]:
         out.append(f"highshelf=f={int(TONE['shelf_hz'])}:g={float(TONE['bright_gain']):.1f}")
@@ -327,10 +335,12 @@ def _resolve_source(timbre):
     builtin = BUILTIN.get(timbre)
     if builtin:
         return {
+            "id": timbre,
             "label": builtin["label"],
             "dir": builtin["dir"],
             "pattern": builtin["pattern"],
             "seek": builtin["seek"],
+            "seek_map": builtin.get("seek_map"),
             "avoid": builtin.get("avoid", set()),
             "high_key": builtin.get("high_key"),
             "high_from": builtin.get("high_from", 999),
@@ -340,6 +350,7 @@ def _resolve_source(timbre):
     if timbre in users:
         u = users[timbre]
         return {
+            "id": timbre,
             "label": u.get("label", timbre),
             "dir": os.path.join(USER_DIR, timbre),
             "pattern": "{key}",
@@ -507,7 +518,7 @@ def _render_one(src, sample, midi, dur, tmp_dir, tag):
     if LOWPASS.get("on") and rate > LOWPASS["from_rate"]:
         cutoff = max(LOWPASS["floor_hz"], min(14000.0, LOWPASS["ceiling"] / rate))
         parts.append(f"lowpass=f={cutoff:.0f}:poles=2")
-    parts += _tone_filters(midi)
+    parts += _tone_filters(midi, src.get("id"))
     parts += _notch_filters(sample["key"], target)
     parts += [f"atrim=0:{dur:.3f}",
               "afade=t=in:st=0:d=0.008",
@@ -524,11 +535,14 @@ def _render_one(src, sample, midi, dur, tmp_dir, tag):
 
 # 八度叠加：高音区把「主层采样」与「更低八度的干净采样升调」叠起来，
 # 主层保音色，辅层补被升调削掉的谐波厚度。gain=0 关闭。
+# ⚠️ 这也是**为古筝调的黑科技**，套到别的音源上会污染音色，所以只有 DUAL_BY 里的音源才做。
 DUAL = {
     "above_midi": 74,      # >= 这个 MIDI 才叠加
     "gain": 0.5,           # 辅层音量（相对主层）
     "aux_lower": 5,        # 辅层采样至少比主层低这么多半音（逼它取更低八度）
 }
+
+DUAL_BY = {"guzheng"}
 
 # 低音补亮：低音区古筝弦基频弱、泛音少，听着发闷。
 # ⚠️ 默认关闭（gain=0）：曾默认 0.35，用户反馈「有杂音」。要试再临时打开。
@@ -552,7 +566,7 @@ def _note_audio(src, midi, dur, idx, tmp_dir):
     if s is None:
         s = _nearest(src["samples"], midi, src.get("avoid", ()))
     sig = _render_one(src, s, midi, dur, tmp_dir, f"n{idx}")
-    if DUAL.get("gain") and midi >= DUAL["above_midi"]:
+    if DUAL.get("gain") and midi >= DUAL["above_midi"] and src.get("id") in DUAL_BY:
         lower = [x for x in src["samples"] if midi_of(x["hz"]) <= s["smidi"] - float(DUAL["aux_lower"])]
         if lower:
             s2 = _nearest(lower, midi)
