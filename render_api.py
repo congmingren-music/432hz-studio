@@ -413,14 +413,18 @@ def _out_name(prefix, tempo):
 
 
 def render_piece(timbre, piece, tempo=1.0, ring=2.0, on_progress=None,
-                 alt=None, alt_from=81, alt_to=None):
+                 alt=None, alt_from=81, alt_to=None, style=None):
     """整曲渲染。
 
     alt/alt_from/alt_to：**高音段换乐器**。旋律的 midi 落在 [alt_from, alt_to] 区间时
     改用 alt 这个音源弹（默认向上不限）。
     用途：古筝在 A5 以上采样失真严重（谐波 35%），而唢呐/长笛在高音区干净得多。
+
+    style：驻波方案，见 STYLE_PRESETS（clean/alive/body/rich）。None = 沿用当前全局状态。
     """
     _ensure_dirs()
+    if style:
+        set_style(style)
     src = _resolve_source(timbre)
     alt_src = _resolve_source(alt) if alt else None
     notes = piece_notes(piece)
@@ -553,6 +557,79 @@ DUAL_LOW = {
 }
 
 
+# ── 驻波区：时域/相位处理（2026-11-01 用户提出「谐波区之外试试驻波区」）──
+# 采样回放每触发一次都是同一波形，所以「死」；真实乐器有微小音高漂移与腔体驻波。
+# BEAT：叠一个极微失谐的副本 → 拍频（驻波的时域表现），0.5–3Hz 的缓慢起伏 = 「活」。
+# COMB：短延迟混合 → 梳状滤波，模拟琴箱/管体的驻波腔，比 EQ 更接近物理。
+BEAT = {
+    "on": False,        # 用户实测「效果好一些」，默认开之前先做整曲 A/B
+    "cents": 2.0,       # 失谐量（音分），2 约等于真人演奏的微观漂移
+    "layers": 1,        # 叠几层
+    "level": 0.5,       # 副本音量（相对主层）
+}
+COMB = {
+    "on": False,
+    "delay_ms": 6.0,    # 延迟长度决定梳齿间距（1/delay）；6ms ≈ 167Hz 间隔
+    "level": 0.25,      # 反馈量（0.2–0.4 像木箱，>0.5 会发金属味）
+}
+
+# 驻波方案预设（2026-11-01 实测数据，可按曲目/音源切换）
+#   clean：原样   差异 0%
+#   alive：拍频   包络起伏 16.8→21.7 dB（时间维"活"），频谱几乎不变，与原版差异 16.7%
+#   body ：梳状   低频 70.8→73.5%、高频 8.9→7.7%（音色变厚变暖），与原版差异仅 3.2%
+#   rich ：两者   起伏 22.2 dB + 低频 73.7%，差异 18.4%
+STYLE_PRESETS = {
+    "clean": {"beat": False, "comb": False},
+    "alive": {"beat": True, "comb": False},
+    "body": {"beat": False, "comb": True},
+    "rich": {"beat": True, "comb": True},
+}
+
+
+def set_style(name):
+    """切换驻波方案。返回切换后的状态字典。"""
+    cfg = STYLE_PRESETS.get(name)
+    if cfg is None:
+        raise KeyError(f"未知方案 {name}，可选：{', '.join(STYLE_PRESETS)}")
+    BEAT["on"] = bool(cfg["beat"])
+    COMB["on"] = bool(cfg["comb"])
+    return {"style": name, "beat": BEAT["on"], "comb": COMB["on"]}
+
+
+def _detune_copy(sig, cents):
+    """按音分微变调（线性插值）——用于制造拍频。"""
+    ratio = 2.0 ** (cents / 1200.0)
+    n = max(2, int(sig.size / ratio))
+    idx = np.arange(n) * ratio
+    return np.interp(idx, np.arange(sig.size), sig)
+
+
+def _beating(sig):
+    """叠微失谐副本，制造拍频。返回与输入等长的片段。"""
+    if not BEAT.get("on"):
+        return sig
+    out = sig.copy()
+    for i in range(int(BEAT.get("layers", 1))):
+        off = float(BEAT["cents"]) * (i + 1) * (1 if i % 2 == 0 else -1)
+        c = _detune_copy(sig, off)
+        n = min(out.size, c.size)
+        out[:n] += c[:n] * (float(BEAT["level"]) / (i + 1))
+    return out
+
+
+def _comb(sig):
+    """短延迟反馈 —— 梳状滤波，模拟腔体驻波。"""
+    if not COMB.get("on"):
+        return sig
+    d = max(1, int(SR * float(COMB["delay_ms"]) / 1000.0))
+    out = sig.copy()
+    g = float(COMB["level"])
+    for i in range(d, out.size, d):
+        j = min(i + d, out.size)
+        out[i:j] += out[i - d:i - d + (j - i)] * g
+    return out
+
+
 def _note_audio(src, midi, dur, idx, tmp_dir):
     """渲染单个音，返回 numpy 片段。高音区强制用指定采样降调，并做八度叠加补厚度。"""
     s = None
@@ -580,6 +657,9 @@ def _note_audio(src, midi, dur, idx, tmp_dir):
             sig3 = _render_one(src, s3, midi, dur, tmp_dir, f"n{idx}h")
             n = min(sig.size, sig3.size)
             sig = sig[:n] + sig3[:n] * float(DUAL_LOW["gain"])
+    # 驻波区处理：先拍频（相位层）再梳状（腔体层），顺序影响结果，先叠相位更自然
+    sig = _beating(sig)
+    sig = _comb(sig)
     return sig
 
 
