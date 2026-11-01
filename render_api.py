@@ -546,18 +546,19 @@ def _note_audio(src, midi, dur, idx, tmp_dir):
     return sig
 
 
-def render_duet(piece, lead="guzheng", pad="flute", pad_gain=0.8, pad_octave=0,
-                pad_every=2, pad_dur=2.5, tempo=1.0, ring=2.0, on_progress=None):
+def render_duet(piece, lead="guzheng", pad="flute", pad_gain=0.5, pad_octave=12,
+                pad_every=1, pad_dur=5.0, pad_min_midi=55, pad_fade=0.25,
+                tempo=1.0, ring=2.0, on_progress=None):
     """双音源编配：主奏弹旋律，衬底按拍铺长音。
 
     古琴曲是单声部，直接弹容易显得空。主奏照常走每个音；
     衬底每 pad_every 个音触发一次、音高偏移 pad_octave、持续 pad_dur，
     密度减半，避免和主奏叠成一团。
 
-    ⚠️ 2026-11-01 试听定版：衬底用**长笛、同度、0.8**。
-    实测结论：能否听出「另一件乐器」取决于音色可分离度，不是变调保真度——
-    箫即使变调 1.0 也和古筝中频叠在一起听着像单音；长笛虽然被拉到 0.37× 反而最突出。
-    二胡同度试过，听感不好，别再用。
+    ⚠️ 2026-11-01 两次试听结论：
+    第 1 轮：能否听出「另一件乐器」取决于音色可分离度，不是变调保真度——箫变调 1.0 听着像单音，长笛被拉到 0.37× 反而最突出。
+    第 2 轮：但**长笛同度**又太贴着主旋律（等于同一条旋律叠一遍），低音区变调失真最重、抢戏，整体不悠扬。
+    所以做衬底的正确形状是：**高一个八度（飘在上面）+ 只在音区中高段出现 + 慢起音**。
     """
     _ensure_dirs()
     notes = piece_notes(piece)
@@ -572,6 +573,7 @@ def render_duet(piece, lead="guzheng", pad="flute", pad_gain=0.8, pad_octave=0,
     total = span * sc + max(1.2, ring) + 2.0
     lead_buf = np.zeros(int(total * SR) + SR, dtype=np.float64)
     pad_buf = np.zeros_like(lead_buf)
+    pad_fade_n = max(1, int(pad_fade * SR)) if pad_fade else 0
 
     for i, n in enumerate(notes):
         midi, dur, start = int(n[0]), float(n[1]), float(n[2])
@@ -581,8 +583,11 @@ def render_duet(piece, lead="guzheng", pad="flute", pad_gain=0.8, pad_octave=0,
         i1 = min(i0 + sg.size, lead_buf.size)
         if i0 < lead_buf.size:
             lead_buf[i0:i1] += sg[:i1 - i0]
-        if pad_src and i % max(1, int(pad_every)) == 0:
+        if pad_src and midi >= pad_min_midi and i % max(1, int(pad_every)) == 0:
             psig = _note_audio(pad_src, midi + int(pad_octave), pad_dur * sc, f"p{i}", tmp)
+            if pad_fade_n and psig.size > pad_fade_n:      # 慢起音，做出「吹进来」的感觉
+                psig = psig.copy()
+                psig[:pad_fade_n] *= np.linspace(0.0, 1.0, pad_fade_n)
             j0 = int(start * sc * SR)
             j1 = min(j0 + psig.size, pad_buf.size)
             if j0 < pad_buf.size:
