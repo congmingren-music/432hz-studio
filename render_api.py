@@ -222,6 +222,25 @@ TONE = {
 TONE_BY = {"guzheng"}
 
 
+# 按音源平衡音量（2026-11-01 实测各音源 RMS 后标定）。
+# 差异极大：长笛 -14.9 dBFS、古筝 -21.1、编钟 -28.7、古琴 -51.0、古琴泛音 -61.3。
+# 古琴/泛音的录音电平很低但信噪比健康（16–29 dB），放大后底噪仍在 -40 dB 以下，可以放心补。
+GAIN_BY = {
+    "guqin": 28.0,      # +28.9 dB（-51.0 → 约 -22）
+    "guqinfan": 45.0,   # +33.1 dB（-61.3 → 约 -28）
+    "guzheng": 1.0,     # 基准
+    "flute": 1.0,
+    "bell": 1.6,        # +4.1 dB
+    "piano": 1.6,
+    "erhu": 1.0,
+    "xiao": 1.0,
+    "suona": 1.0,
+}
+
+# 整曲输出增益（dB）：再往上提一点整体响度，配合限幅防削波
+OUTPUT_GAIN_DB = 5.0
+
+
 def _tone_filters(midi, timbre=None):
     """按音高返回音色补偿滤镜。只有 TONE_BY 白名单里的音源才套用。"""
     if timbre is not None and timbre not in TONE_BY:
@@ -493,11 +512,13 @@ def render_piece(timbre, piece, tempo=1.0, ring=2.0, on_progress=None,
     # 二元组 [midi, dur] 顺序累加；三元组 [midi, dur, start] 按谱面绝对时间定位（古琴曲库走这条）
     has_start = bool(notes) and len(notes[0]) >= 3
     sc = 1.0 / tempo
+    # 保留完整余音时，缓冲区要额外留出余音长度，否则每个音都被尾部截掉
+    tail_pad = float(TAIL["min_keep"]) if TAIL.get("on") else 0.0
     if has_start:
         span = max(float(n[2]) + float(n[1]) for n in notes)
-        total = span * sc + ring + 2.0
+        total = span * sc + ring + 2.0 + tail_pad
     else:
-        total = sum(float(n[1]) for n in notes) * sc + 2.0
+        total = sum(float(n[1]) for n in notes) * sc + 2.0 + tail_pad
     buf = np.zeros(int(total * SR) + SR * 4, dtype=np.float64)
 
     cursor = 0.0
@@ -531,7 +552,8 @@ def render_piece(timbre, piece, tempo=1.0, ring=2.0, on_progress=None,
             on_progress(int((i + 1) / len(notes) * 100))
 
     end_t = (max(float(n[2]) + float(n[1]) for n in notes) * sc) if has_start else cursor
-    used = int((end_t + ring + 0.8) * SR)
+    # 保留完整余音时，结尾要留出余响，否则刚叠起来的尾韵又被裁掉
+    used = int((end_t + ring + 0.8 + (float(TAIL["min_keep"]) if TAIL.get("on") else 0.0)) * SR)
     buf = buf[:min(used, buf.size)]
     ntail = int(SR * 1.2)
     if buf.size > ntail:
@@ -539,6 +561,10 @@ def render_piece(timbre, piece, tempo=1.0, ring=2.0, on_progress=None,
     peak = float(np.max(np.abs(buf))) if buf.size else 0.0
     if peak > 0:
         buf *= 0.85 / peak
+    # 整曲增益：提到接近常规音乐响度；用软限幅防削波（硬 clip 会出咔哒）
+    if OUTPUT_GAIN_DB:
+        buf *= 10 ** (float(OUTPUT_GAIN_DB) / 20.0)
+        buf = np.tanh(buf * 1.05) / np.tanh(1.05)
     pcm = (np.clip(buf, -1, 1) * 32767).astype(np.int16)
 
     name = _out_name(f"studio-{timbre}-{piece}", tempo)
@@ -573,15 +599,28 @@ def _notch_filters(key, target_f0, sr=SR):
     return out
 
 
+TAIL = {
+    # 2026-11-01 试听反馈：「好像都是拼接的，没有复合的感觉，只留了一个音最突出的一段，
+    # 没有保留隐在其他音之后的那段余震」。改法：不再按音符时长截断采样，
+    # 而是保留采样的**完整余音**，只在最末尾做一次长淡出，让相邻音的余响自然交叠。
+    "on": True,
+    "min_keep": 6.0,     # 至少保留这么长的余音（秒）；采样比这长就保留到末尾
+    "tail_fade": 1.2,    # 末尾淡出长度（秒）
+}
+
+
 def _render_one(src, sample, midi, dur, tmp_dir, tag):
-    """用指定采样渲染一个音（单层）。"""
+    """用指定采样渲染一个音（单层）。
+
+    dur 只作为「最短保留时长」的下限；TAIL.on 时不再按 dur 硬截断，
+    而是把采样剩下的部分完整保留，让余音能叠进后续的音里。
+    """
     target = 432.0 * 2 ** ((midi - 69) / 12.0)
     rate = target / sample["hz"]
     f = _pick_sample_file(src, sample["key"])
     if not f:
         raise FileNotFoundError(sample["key"])
     out = os.path.join(tmp_dir, f"{tag}.wav")
-    fade = min(0.6, dur * 0.5)
     # per-key 起音裁剪：某些采样的前几百毫秒是宽带撞击瞬态（听感=金属铃），跳过后音色干净得多
     seek = (src.get("seek_map") or {}).get(str(sample["key"]), src.get("seek"))
     parts = [f"aresample={SR}", f"asetrate={int(round(SR * rate))}", f"aresample={SR}"]
@@ -591,9 +630,17 @@ def _render_one(src, sample, midi, dur, tmp_dir, tag):
         parts.append(f"lowpass=f={cutoff:.0f}:poles=2")
     parts += _tone_filters(midi, src.get("id"))
     parts += _notch_filters(sample["key"], target)
-    parts += [f"atrim=0:{dur:.3f}",
-              "afade=t=in:st=0:d=0.008",
-              f"afade=t=out:st={max(0.0, dur - fade):.3f}:d={fade:.3f}"]
+    parts += ["afade=t=in:st=0:d=0.008"]
+    if TAIL.get("on"):
+        # 保留全长；末尾 1.2s 淡出（采样比 min_keep 短时也不至于戛然而止）
+        keep = max(float(TAIL["min_keep"]), dur)
+        parts += [f"atrim=0:{keep:.3f}",
+                  f"afade=t=out:st={max(0.0, keep - float(TAIL['tail_fade'])):.3f}"
+                  f":d={float(TAIL['tail_fade']):.3f}"]
+    else:
+        fade = min(0.6, dur * 0.5)
+        parts += [f"atrim=0:{dur:.3f}",
+                  f"afade=t=out:st={max(0.0, dur - fade):.3f}:d={fade:.3f}"]
     cmd = [FFMPEG, "-hide_banner", "-loglevel", "error", "-y"]
     if seek:
         cmd += ["-ss", str(seek)]
@@ -601,6 +648,11 @@ def _render_one(src, sample, midi, dur, tmp_dir, tag):
     subprocess.run(cmd, check=True, capture_output=True)
     _, sig = read_wav(out)
     os.remove(out)
+    # 按音源平衡音量：各音源的录音电平差极大（古琴 -51 dBFS、长笛 -14.9，差 36 dB），
+    # 不补偿的话，古琴为主的作品听感就是「音量很小」。
+    g = float(GAIN_BY.get(src.get("id"), 1.0)) if GAIN_BY else 1.0
+    if g != 1.0:
+        sig = sig * g
     return sig
 
 
