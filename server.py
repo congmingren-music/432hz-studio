@@ -152,6 +152,13 @@ class Handler(BaseHTTPRequestHandler):
         if p == "/api/out_info":
             return self._json(out_info())
 
+        if p == "/api/style":
+            return self._json({
+                "presets": R.STYLE_PRESETS,
+                "beat": dict(R.BEAT),
+                "comb": dict(R.COMB),
+            })
+
         if p.startswith("/api/job/"):
             jid = p.rsplit("/", 1)[-1]
             with LOCK:
@@ -175,6 +182,29 @@ class Handler(BaseHTTPRequestHandler):
             body = json.loads(self.rfile.read(length).decode("utf-8")) if length else {}
         except Exception:
             return self._json({"error": "bad json"}, 400)
+
+        if p == "/api/style":
+            # 切换驻波方案 / 调参。body: {style?} 或 {beat:{...}, comb:{...}}
+            out = {}
+            st = body.get("style")
+            if st:
+                try:
+                    out["applied"] = R.set_style(st)
+                except KeyError as e:
+                    return self._json({"error": str(e)}, 400)
+            for k, cfg in (("beat", R.BEAT), ("comb", R.COMB)):
+                patch = body.get(k) or {}
+                for key in ("cents", "layers", "level", "delay_ms"):
+                    if key in patch:
+                        try:
+                            cfg[key] = float(patch[key])
+                        except (TypeError, ValueError):
+                            pass
+                if "on" in patch:
+                    cfg["on"] = bool(patch["on"])
+            out.update({"beat": dict(R.BEAT), "comb": dict(R.COMB),
+                        "presets": R.STYLE_PRESETS})
+            return self._json(out)
 
         if p == "/api/estimate":
             sections = body.get("sections") or []
