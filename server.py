@@ -157,6 +157,8 @@ class Handler(BaseHTTPRequestHandler):
                 "presets": R.STYLE_PRESETS,
                 "beat": dict(R.BEAT),
                 "comb": dict(R.COMB),
+                "tail": dict(R.TAIL),
+                "gain": {"output_db": R.OUTPUT_GAIN_DB, "by": dict(R.GAIN_BY)},
             })
 
         if p.startswith("/api/job/"):
@@ -202,8 +204,25 @@ class Handler(BaseHTTPRequestHandler):
                             pass
                 if "on" in patch:
                     cfg["on"] = bool(patch["on"])
+            # 余音参数（低/中/高音区各自保留多久 + 淡出长度）
+            tp = body.get("tail") or {}
+            for key in ("min_keep", "low_keep", "mid_keep", "high_keep", "tail_fade"):
+                if key in tp:
+                    try:
+                        R.TAIL[key] = max(0.2, min(12.0, float(tp[key])))
+                    except (TypeError, ValueError):
+                        pass
+            for key in ("on", "dynamic"):
+                if key in tp:
+                    R.TAIL[key] = bool(tp[key])
+            for key in ("low_midi", "high_midi"):
+                if key in tp:
+                    try:
+                        R.TAIL[key] = int(tp[key])
+                    except (TypeError, ValueError):
+                        pass
             out.update({"beat": dict(R.BEAT), "comb": dict(R.COMB),
-                        "presets": R.STYLE_PRESETS})
+                        "tail": dict(R.TAIL), "presets": R.STYLE_PRESETS})
             return self._json(out)
 
         if p == "/api/estimate":
