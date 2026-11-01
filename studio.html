@@ -143,6 +143,24 @@
       <div id="pieceList"></div>
       <div class="row"><label>速度</label><input type="range" id="tempo" min="0.6" max="1.6" step="0.05" value="1"><span class="val" id="tempoV">1.00×</span></div>
       <div class="row"><label>余音</label><input type="range" id="ring" min="0.5" max="5" step="0.1" value="2"><span class="val" id="ringV">2.0s</span></div>
+      <div class="row" style="margin-top:8px"><label>驻波方案</label>
+        <select id="styleSel" style="flex:1">
+          <option value="clean">clean · 原样（最干净）</option>
+          <option value="alive">alive · 拍频（长音有呼吸）</option>
+          <option value="body">body · 梳状（音色更厚）</option>
+          <option value="rich">rich · 两者叠加</option>
+        </select>
+      </div>
+      <div class="row" id="beatRow" style="display:none"><label>失谐量</label>
+        <input type="range" id="beatCents" min="0.5" max="8" step="0.5" value="2"><span class="val" id="beatCentsV">2.0 音分</span>
+      </div>
+      <div class="row" id="combRow" style="display:none"><label>腔体延迟</label>
+        <input type="range" id="combDelay" min="2" max="14" step="0.5" value="6"><span class="val" id="combDelayV">6.0ms</span>
+      </div>
+      <div class="row" id="combLvlRow" style="display:none"><label>腔体反馈</label>
+        <input type="range" id="combLevel" min="0.05" max="0.6" step="0.05" value="0.25"><span class="val" id="combLevelV">0.25</span>
+      </div>
+      <div class="log" id="styleHint" style="margin-top:6px"></div>
 
       <label class="chk" style="margin-top:14px"><input type="checkbox" id="useArrange"> 使用自定义编排</label>
       <div id="arrangeBox" style="display:none;margin-top:10px">
@@ -786,6 +804,65 @@
 
   $('tempo').oninput = function(){ $('tempoV').textContent = parseFloat(this.value).toFixed(2) + '×'; };
   $('ring').oninput = function(){ $('ringV').textContent = parseFloat(this.value).toFixed(1) + 's'; };
+
+  // ── 驻波方案：切换 + 调参 ──
+  var STYLE_HINT = {
+    clean: '不处理，最干净。适合节奏密集、需要听清颗粒的曲子。',
+    alive: '叠极微失谐副本产生拍频，让长音有呼吸感。适合吟猱细腻的慢曲。',
+    body:  '短延迟反馈模拟琴箱共鸣，音色变厚变暖。适合低音区为主的曲子。',
+    rich:  '两者叠加，最饱满，但可能略糊。'
+  };
+  function styleRows(){
+    var s = $('styleSel').value;
+    $('beatRow').style.display = (s === 'alive' || s === 'rich') ? 'flex' : 'none';
+    var showComb = (s === 'body' || s === 'rich');
+    $('combRow').style.display = showComb ? 'flex' : 'none';
+    $('combLvlRow').style.display = showComb ? 'flex' : 'none';
+    $('styleHint').textContent = STYLE_HINT[s] || '';
+  }
+  function postStyle(payload){
+    return fetch('/api/style', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload)
+    }).then(function(r){ return r.json(); });
+  }
+  $('styleSel').onchange = function(){
+    styleRows();
+    postStyle({style: this.value}).then(function(d){
+      if (d.error) { $('styleHint').textContent = d.error; return; }
+      if (d.beat) {
+        $('beatCents').value = d.beat.cents; $('beatCentsV').textContent = d.beat.cents.toFixed(1) + ' 音分';
+        $('combDelay').value = d.comb.delay_ms; $('combDelayV').textContent = d.comb.delay_ms.toFixed(1) + 'ms';
+        $('combLevel').value = d.comb.level; $('combLevelV').textContent = d.comb.level.toFixed(2);
+      }
+    });
+  };
+  $('beatCents').oninput = function(){
+    $('beatCentsV').textContent = parseFloat(this.value).toFixed(1) + ' 音分';
+    postStyle({beat: {cents: parseFloat(this.value)}});
+  };
+  $('combDelay').oninput = function(){
+    $('combDelayV').textContent = parseFloat(this.value).toFixed(1) + 'ms';
+    postStyle({comb: {delay_ms: parseFloat(this.value)}});
+  };
+  $('combLevel').oninput = function(){
+    $('combLevelV').textContent = parseFloat(this.value).toFixed(2);
+    postStyle({comb: {level: parseFloat(this.value)}});
+  };
+  (function initStyle(){
+    styleRows();
+    fetch('/api/style').then(function(r){ return r.json(); }).then(function(d){
+      if (!d || !d.beat) return;
+      $('beatCents').value = d.beat.cents; $('beatCentsV').textContent = d.beat.cents.toFixed(1) + ' 音分';
+      $('combDelay').value = d.comb.delay_ms; $('combDelayV').textContent = d.comb.delay_ms.toFixed(1) + 'ms';
+      $('combLevel').value = d.comb.level; $('combLevelV').textContent = d.comb.level.toFixed(2);
+      if (d.beat.on && d.comb.on) $('styleSel').value = 'rich';
+      else if (d.beat.on) $('styleSel').value = 'alive';
+      else if (d.comb.on) $('styleSel').value = 'body';
+      else $('styleSel').value = 'clean';
+      styleRows();
+    }).catch(function(){});
+  })();
   $('refreshSrc').onclick = loadSources;
 
   $('uploadBtn').onclick = function(){
