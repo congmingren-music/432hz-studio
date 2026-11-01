@@ -89,6 +89,10 @@ BUILTIN = {
         # 高音区策略：经 A/B 试听，用户选定「排除 79/86、用 74 升调补厚」这一版。
         # 86 降调虽然谐波能量更整齐（G5 75% vs 28%），但听感被判定「方向不对」，默认关闭。
         "avoid": {"79", "86"},
+        # per-midi 强制指定采样（比 avoid 精确：只改这个音，不动同采样覆盖的其他音）。
+        # E4(64) 原用 65 号降 0.7 半音，三窗口谐波 95.7/24.6/15.9 极不稳定（采样某段带杂音），
+        # 改 62 号升 2 半音实测 87.1%，稳定得多。
+        "map": {"64": "62"},
         "high_key": None,
         "high_from": 76,
         "seek": None,
@@ -344,6 +348,7 @@ def _resolve_source(timbre):
             "pattern": builtin["pattern"],
             "seek": builtin["seek"],
             "seek_map": builtin.get("seek_map"),
+            "map": builtin.get("map"),
             "avoid": builtin.get("avoid", set()),
             "high_key": builtin.get("high_key"),
             "high_from": builtin.get("high_from", 999),
@@ -416,12 +421,16 @@ def _out_name(prefix, tempo):
 
 
 def render_piece(timbre, piece, tempo=1.0, ring=2.0, on_progress=None,
-                 alt=None, alt_from=81, alt_to=None, style=None):
+                 alt=None, alt_from=81, alt_to=None, style=None,
+                 shadow=None, shadow_from=78, shadow_gain=0.4):
     """整曲渲染。
 
     alt/alt_from/alt_to：**高音段换乐器**。旋律的 midi 落在 [alt_from, alt_to] 区间时
     改用 alt 这个音源弹（默认向上不限）。
-    用途：古筝在 A5 以上采样失真严重（谐波 35%），而唢呐/长笛在高音区干净得多。
+
+    shadow/shadow_from/shadow_gain：**高音段叠加遮盖层**。主奏照常弹，但 midi ≥ shadow_from
+    的音同时叠一层 shadow 音源（同音高），用它的金属余音盖住古筝高音的刺耳。
+    2026-11-01 用户提出：与其换掉古筝，不如叠编钟掩盖——保留古筝音色又能压住问题。
 
     style：驻波方案，见 STYLE_PRESETS（clean/alive/body/rich）。None = 沿用当前全局状态。
     """
@@ -430,6 +439,7 @@ def render_piece(timbre, piece, tempo=1.0, ring=2.0, on_progress=None,
         set_style(style)
     src = _resolve_source(timbre)
     alt_src = _resolve_source(alt) if alt else None
+    shadow_src = _resolve_source(shadow) if shadow else None
     notes = piece_notes(piece)
     if not notes:
         raise KeyError(f"未知曲目 {piece}")
@@ -461,6 +471,12 @@ def render_piece(timbre, piece, tempo=1.0, ring=2.0, on_progress=None,
         i0 = int(start_t * sc * SR)
         i1 = min(i0 + sig.size, buf.size)
         buf[i0:i1] += sig[:i1 - i0]
+        # 高音段叠加遮盖层：同音高再叠一层 shadow（编钟），用它盖住刺耳
+        if shadow_src is not None and midi >= shadow_from:
+            sh = _note_audio(shadow_src, midi, seg_dur * 1.4, f"{i}s", tmp_dir)
+            j1 = min(i0 + sh.size, buf.size)
+            if i0 < buf.size:
+                buf[i0:j1] += sh[:j1 - i0] * float(shadow_gain)
         if not has_start:
             cursor += dur * sc + 0.03
         if on_progress:
@@ -636,8 +652,16 @@ def _comb(sig):
 def _note_audio(src, midi, dur, idx, tmp_dir):
     """渲染单个音，返回 numpy 片段。高音区强制用指定采样降调，并做八度叠加补厚度。"""
     s = None
+    # per-midi 强制指定采样（比 avoid 更精确，不影响同采样覆盖的其他音）
+    forced = (src.get("map") or {}).get(str(midi))
     hk = src.get("high_key")
-    if hk and midi >= src.get("high_from", 999):
+    if forced:
+        for x in src["samples"]:
+            if str(x["key"]) == str(forced):
+                s = {"key": x["key"], "hz": x["hz"], "smidi": midi_of(x["hz"]),
+                     "diff": midi - midi_of(x["hz"])}
+                break
+    if s is None and hk and midi >= src.get("high_from", 999):
         for x in src["samples"]:
             if str(x["key"]) == str(hk):
                 smidi = midi_of(x["hz"])
