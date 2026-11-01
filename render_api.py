@@ -546,6 +546,76 @@ def _note_audio(src, midi, dur, idx, tmp_dir):
     return sig
 
 
+def render_duet(piece, lead="guzheng", pad="flute", pad_gain=0.8, pad_octave=0,
+                pad_every=2, pad_dur=2.5, tempo=1.0, ring=2.0, on_progress=None):
+    """双音源编配：主奏弹旋律，衬底按拍铺长音。
+
+    古琴曲是单声部，直接弹容易显得空。主奏照常走每个音；
+    衬底每 pad_every 个音触发一次、音高偏移 pad_octave、持续 pad_dur，
+    密度减半，避免和主奏叠成一团。
+
+    ⚠️ 2026-11-01 试听定版：衬底用**长笛、同度、0.8**。
+    实测结论：能否听出「另一件乐器」取决于音色可分离度，不是变调保真度——
+    箫即使变调 1.0 也和古筝中频叠在一起听着像单音；长笛虽然被拉到 0.37× 反而最突出。
+    二胡同度试过，听感不好，别再用。
+    """
+    _ensure_dirs()
+    notes = piece_notes(piece)
+    if not notes:
+        raise KeyError(f"曲目为空或未知：{piece}")
+    lead_src = _resolve_source(lead)
+    pad_src = _resolve_source(pad) if pad else None
+    tmp = os.path.join(OUT_DIR, "_duet")
+    os.makedirs(tmp, exist_ok=True)
+    sc = 1.0 / tempo
+    span = max(float(n[2]) + float(n[1]) for n in notes)
+    total = span * sc + max(1.2, ring) + 2.0
+    lead_buf = np.zeros(int(total * SR) + SR, dtype=np.float64)
+    pad_buf = np.zeros_like(lead_buf)
+
+    for i, n in enumerate(notes):
+        midi, dur, start = int(n[0]), float(n[1]), float(n[2])
+        seg = max(0.9, dur * 1.7) * sc + ring * 0.35
+        sg = _note_audio(lead_src, midi, seg, f"l{i}", tmp)
+        i0 = int(start * sc * SR)
+        i1 = min(i0 + sg.size, lead_buf.size)
+        if i0 < lead_buf.size:
+            lead_buf[i0:i1] += sg[:i1 - i0]
+        if pad_src and i % max(1, int(pad_every)) == 0:
+            psig = _note_audio(pad_src, midi + int(pad_octave), pad_dur * sc, f"p{i}", tmp)
+            j0 = int(start * sc * SR)
+            j1 = min(j0 + psig.size, pad_buf.size)
+            if j0 < pad_buf.size:
+                pad_buf[j0:j1] += psig[:j1 - j0]
+        if on_progress and i % 4 == 0:
+            on_progress(min(95, int(i / max(1, len(notes)) * 95)))
+
+    # 关键：按「主奏峰值」归一化，pad 再按 pad_gain 比例叠加。
+    # 之前是混完一起归一化，pad 越大整体被压得越狠 → 听感是主奏变弱，而不是多出一层。
+    lead_peak = float(np.max(np.abs(lead_buf))) if lead_buf.size else 0.0
+    scale = (0.85 / lead_peak) if lead_peak > 0 else 1.0
+    buf = lead_buf * scale + pad_buf * scale * float(pad_gain)
+    peak = float(np.max(np.abs(buf))) if buf.size else 0.0
+    if peak > 0.98:                      # 只在真的会削波时整体压一下
+        buf *= 0.98 / peak
+    ntail = int(SR * 1.5)
+    if buf.size > ntail:
+        buf[-ntail:] *= np.linspace(1.0, 0.0, ntail)
+    pcm = (np.clip(buf, -1, 1) * 32767).astype(np.int16)
+    safe_piece = re.sub(r"[^\w\-\u4e00-\u9fff]+", "_", str(piece))
+    name = _out_name(f"studio-duet-{safe_piece}", tempo)
+    path = os.path.join(OUT_DIR, name)
+    with wave.open(path, "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(SR)
+        w.writeframes(pcm.tobytes())
+    for f in os.listdir(tmp):
+        os.remove(os.path.join(tmp, f))
+    os.rmdir(tmp)
+    return path, buf.size / SR
+
+
 def render_quartet(tempo=1.0, ring=2.0, on_progress=None):
     """多音源编排：编钟前奏 → 二胡主题 → 长笛变奏 → 二胡+编钟 → 编钟尾声。"""
     _ensure_dirs()
