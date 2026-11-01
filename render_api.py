@@ -120,6 +120,30 @@ BUILTIN = {
                "74": 587.33, "77": 698.46, "82": 932.33, "86": 1174.66, "89": 1396.91},
         "seek": None,
     },
+    "guqin": {
+        # 2026-11-01 用户提供「古琴采音.zip」：散音 7 个（真古琴七弦正调）+ 泛音 7 个。
+        # 散音自相关实测与正调完全吻合：C2 64.66 / D2 73.38 / F2 87.33 / G2 98.44 /
+        # A2 110.80 / C3 130.09 / D3 147.00，偏差都在 ±20 音分内。表里用理论值更稳。
+        # ⚠️ 只有 7 个音（C2–D3），弹 G2–G4 的旋律要升 1–3 倍，变调质量待测。
+        "label": "古琴（散音七弦）",
+        "dir": os.path.join(SAMPLES, "guqin"),
+        "pattern": r"guqin-{key}\.wav$",
+        "hz": {"36": 65.41, "38": 73.42, "41": 87.31, "43": 98.0,
+               "45": 110.0, "48": 130.81, "50": 146.83},
+        "seek": None,
+    },
+    "guqinfan": {
+        # 古琴泛音（2026-11-01 同一批采音里的「泛1-7」）。
+        # 泛音是古琴三音色（散音/按音/泛音）之一，音色清亮、接近纯音。
+        # 音高用自相关实测值；它们不是连续音阶（G3 A3 G4 C5 D5 E5 A5），
+        # 弹中间的音靠变调，所以更适合做点缀而不是主奏。
+        "label": "古琴泛音",
+        "dir": os.path.join(SAMPLES, "guqin"),
+        "pattern": r"guqinfan-{key}\.wav$",
+        "hz": {"55": 194.27, "57": 220.50, "67": 397.30, "72": 518.82,
+               "74": 588.00, "76": 668.18, "81": 882.00},
+        "seek": None,
+    },
 }
 
 # ── 曲目：MIDI + 时长 ──
@@ -420,9 +444,17 @@ def _out_name(prefix, tempo):
     return f"{safe}-{int(tempo * 100)}-{datetime.datetime.now():%Y%m%d-%H%M%S}.wav"
 
 
+# ── 按音域分工（2026-11-01 用户选定 B 方案）──
+# 古筝只有 35 个采样（五声调弦），半音位和 C6 以上靠变调凑，谐波掉到 15–36%；
+# 中低音区（≤A4）实测 76–99%，是它真正的可用范围。
+# 所以：古筝退守 A4 以下，A#4–C6 交长笛，C#6 以上交编钟（F#5–A6 实测 83–99.7%）。
+# 这不是"修补古筝"，是让它只在自己能弹的地方弹——之前七条修补路线全部失败后得出的结论。
+SPLIT_DEFAULT = [("guzheng", 0, 70), ("flute", 70, 85), ("bell", 85, 128)]
+
+
 def render_piece(timbre, piece, tempo=1.0, ring=2.0, on_progress=None,
                  alt=None, alt_from=81, alt_to=None, style=None,
-                 shadow=None, shadow_from=78, shadow_gain=0.4):
+                 shadow=None, shadow_from=78, shadow_gain=0.4, split="default"):
     """整曲渲染。
 
     alt/alt_from/alt_to：**高音段换乐器**。旋律的 midi 落在 [alt_from, alt_to] 区间时
@@ -432,6 +464,12 @@ def render_piece(timbre, piece, tempo=1.0, ring=2.0, on_progress=None,
     的音同时叠一层 shadow 音源（同音高），用它的金属余音盖住古筝高音的刺耳。
     2026-11-01 用户提出：与其换掉古筝，不如叠编钟掩盖——保留古筝音色又能压住问题。
 
+    split：**按音域分工**（比 alt 更灵活，推荐用这个）。格式
+    `[("guzheng", 0, 70), ("flute", 70, 85), ("bell", 85, 128)]`，
+    每个元素是 (音源, lo, hi)，midi 落在 [lo, hi) 的音用该音源。
+    背景：古筝只有 35 个采样（五声调弦），半音位和 C6 以上靠变调凑，谐波只有 15–36%；
+    中低音区（≤A4）实测 76–99%，是它真正的可用范围。所以让它退守中低音。
+
     style：驻波方案，见 STYLE_PRESETS（clean/alive/body/rich）。None = 沿用当前全局状态。
     """
     _ensure_dirs()
@@ -439,6 +477,11 @@ def render_piece(timbre, piece, tempo=1.0, ring=2.0, on_progress=None,
         set_style(style)
     src = _resolve_source(timbre)
     alt_src = _resolve_source(alt) if alt else None
+    if split == "default":
+        split = SPLIT_DEFAULT
+    split_layers = None
+    if split:
+        split_layers = [(_resolve_source(t), float(lo), float(hi)) for t, lo, hi in split]
     shadow_src = _resolve_source(shadow) if shadow else None
     notes = piece_notes(piece)
     if not notes:
@@ -462,9 +505,14 @@ def render_piece(timbre, piece, tempo=1.0, ring=2.0, on_progress=None,
         midi, dur = int(n[0]), float(n[1])
         start_t = float(n[2]) if has_start else cursor
         seg_dur = max(0.9, dur * 1.7) * (1.0 / tempo) + ring * 0.35
-        # 高音段换乐器：落在 [alt_from, alt_to) 的音交给 alt 音源
+        # 按音域分工优先（split），其次高音段换乐器（alt）
         use_src = src
-        if alt_src is not None and midi >= alt_from and (alt_to is None or midi < alt_to):
+        if split_layers:
+            for layer_src, lo, hi in split_layers:
+                if lo <= midi < hi:
+                    use_src = layer_src
+                    break
+        elif alt_src is not None and midi >= alt_from and (alt_to is None or midi < alt_to):
             use_src = alt_src
         sig = _note_audio(use_src, midi, seg_dur, f"{i}", tmp_dir)
 
