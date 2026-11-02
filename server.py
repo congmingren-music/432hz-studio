@@ -162,6 +162,25 @@ class Handler(BaseHTTPRequestHandler):
                 "gain": {"output_db": R.OUTPUT_GAIN_DB, "by": dict(R.GAIN_BY)},
             })
 
+        if p == "/api/open_folder":
+            # 在资源管理器里打开一个预设目录（只允许白名单，不接受任意路径）
+            import subprocess as _sp
+            which = str(body.get("which", "out"))
+            targets = {
+                "out": R.OUT_DIR,
+                "samples": R.SAMPLES,
+                "models": os.path.join(HERE, "models"),
+                "root": HERE,
+            }
+            path = targets.get(which)
+            if not path or not os.path.isdir(path):
+                return self._json({"error": f"目录不存在: {which}"}, 400)
+            try:
+                _sp.Popen(["explorer", path])
+            except Exception as e:
+                return self._json({"error": f"{type(e).__name__}: {e}"}, 500)
+            return self._json({"ok": True, "path": path})
+
         if p == "/api/debug":
             # 调试面板：当前全部参数 + 指定曲目的诊断
             from urllib.parse import parse_qs
@@ -256,6 +275,25 @@ class Handler(BaseHTTPRequestHandler):
             body = json.loads(self.rfile.read(length).decode("utf-8")) if length else {}
         except Exception:
             return self._json({"error": "bad json"}, 400)
+
+        if p == "/api/open_folder":
+            # 在资源管理器里打开一个预设目录（只允许白名单，不接受任意路径）
+            import subprocess as _sp
+            which = str(body.get("which", "out"))
+            targets = {
+                "out": R.OUT_DIR,
+                "samples": R.SAMPLES,
+                "models": os.path.join(HERE, "models"),
+                "root": HERE,
+            }
+            path = targets.get(which)
+            if not path or not os.path.isdir(path):
+                return self._json({"error": f"目录不存在: {which}"}, 400)
+            try:
+                _sp.Popen(["explorer", path])
+            except Exception as e:
+                return self._json({"error": f"{type(e).__name__}: {e}"}, 500)
+            return self._json({"ok": True, "path": path})
 
         if p == "/api/style":
             # 切换驻波方案 / 调参。body: {style?} 或 {beat:{...}, comb:{...}}
