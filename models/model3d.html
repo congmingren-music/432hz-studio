@@ -308,7 +308,7 @@ try{ var _fp=localStorage.getItem('helixPitch'); if(_fp!==null) FLAT_PITCH=parse
       if(!dragging) return;
       var dSpin = (e.clientX-lastX)*0.01;
       FLAT_SPIN += dSpin;
-      yaw += dSpin;                    // 同步 3D（同一个物体，两个投影）
+      yaw -= dSpin;                    // 同步 3D（方向与平面图一致）
       FLAT_PITCH += (e.clientY-lastY)*(-0.005);
       FLAT_PITCH = Math.max(-1.0, Math.min(1.0, FLAT_PITCH));   // 负值 = 从下方仰视
       try{ localStorage.setItem('helixPitch', String(FLAT_PITCH)); }catch(e){}
@@ -338,8 +338,8 @@ try{ var _fp=localStorage.getItem('helixPitch'); if(_fp!==null) FLAT_PITCH=parse
         try{ localStorage.setItem('helixStep', String(STEP_DEG)); }catch(e){}
       };
     }
-    if(L) L.onclick=function(){ var s=deg2rad(STEP_DEG); FLAT_SPIN-=s; yaw-=s; draw(); drawFlat(); };
-    if(Rr) Rr.onclick=function(){ var s=deg2rad(STEP_DEG); FLAT_SPIN+=s; yaw+=s; draw(); drawFlat(); };
+    if(L) L.onclick=function(){ var s=deg2rad(STEP_DEG); FLAT_SPIN-=s; yaw+=s; draw(); drawFlat(); };
+    if(Rr) Rr.onclick=function(){ var s=deg2rad(STEP_DEG); FLAT_SPIN+=s; yaw-=s; draw(); drawFlat(); };
   })();
 
   // 俯仰快捷档位
@@ -357,7 +357,7 @@ try{ var _fp=localStorage.getItem('helixPitch'); if(_fp!==null) FLAT_PITCH=parse
   cv.addEventListener('pointerup',function(){ drag=false; });
   cv.addEventListener('pointermove',function(e){
     if(!drag) return;
-    var dYaw = (e.clientX-lx)*0.01;
+    var dYaw = -(e.clientX-lx)*0.01;   // 负号：与平面图方向一致
     yaw += dYaw;
     FLAT_SPIN += dYaw;                 // 同步平面图
     pitch += (e.clientY-ly)*0.006;
@@ -441,7 +441,7 @@ try{ var _fp=localStorage.getItem('helixPitch'); if(_fp!==null) FLAT_PITCH=parse
   };
 
   // 自动旋转（用 timer，避免 headless 下 rAF 失控）
-  setInterval(function(){ if(autoSpin){ yaw+=0.006; FLAT_SPIN+=0.006; draw(); drawFlat(); } }, 60);
+  setInterval(function(){ if(autoSpin){ yaw-=0.006; FLAT_SPIN+=0.006; draw(); drawFlat(); } }, 60);
 
     // 宫位下拉：只影响试听频率，几何不变（半径固定按基准算，保住对称）
   var gs3=document.getElementById('gongSel3d');
