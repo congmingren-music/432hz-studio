@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="760" viewBox="0 0 960 760">
+<rect width="960" height="760" fill="#F7F2EB"/>
+<text x="24" y="42" font-family="Lanxi-WenKai, 'Microsoft YaHei', serif" font-size="22" font-weight="700" fill="#081F5C">八音 · 八卦 · 八边形</text>
+<text x="24" y="64" font-family="Lanxi-WenKai, 'Microsoft YaHei', serif" font-size="11.5" fill="#7096D1">半径 = 频率的对数映射　｜　外环 = 后天八卦方位　｜　右侧 = 洛书九宫</text>
+<path d="M330.0,240.0 L436.1,263.9 L500.0,370.0 L457.3,497.3 L330.0,570.0 L174.4,525.6 L90.0,370.0 L153.2,193.2 Z" fill="none" stroke="#334EAC" stroke-width="2"/>
+<line x1="330.0" y1="240.0" x2="330.0" y2="570.0" stroke="#7096D1" stroke-width="0.8" stroke-dasharray="4 5" opacity="0.7"/>
+<line x1="436.1" y1="263.9" x2="174.4" y2="525.6" stroke="#7096D1" stroke-width="0.8" stroke-dasharray="4 5" opacity="0.7"/>
+<line x1="500.0" y1="370.0" x2="90.0" y2="370.0" stroke="#7096D1" stroke-width="0.8" stroke-dasharray="4 5" opacity="0.7"/>
+<line x1="457.3" y1="497.3" x2="153.2" y2="193.2" stroke="#7096D1" stroke-width="0.8" stroke-dasharray="4 5" opacity="0.7"/>
+<circle cx="330.0" cy="240.0" r="21" fill="#F7F2EB" stroke="#081F5C" stroke-width="1.8"/>
+<text x="330.0" y="241.0" text-anchor="middle" font-family="Consolas, monospace" font-size="11" font-weight="700" fill="#081F5C">C4</text>
+<text x="330.0" y="253.0" text-anchor="middle" font-family="Lanxi-WenKai, 'Microsoft YaHei', serif" font-size="9" fill="#A85C32">乾</text>
+<text x="330.0" y="200.0" text-anchor="middle" font-family="Consolas, monospace" font-size="9.5" fill="#334EAC">256.87</text>
+<circle cx="436.1" cy="263.9" r="21" fill="#F7F2EB" stroke="#081F5C" stroke-width="1.8"/>
+<text x="436.1" y="264.9" text-anchor="middle" font-family="Consolas, monospace" font-size="11" font-weight="700" fill="#081F5C">D4</text>
+<text x="436.1" y="276.9" text-anchor="middle" font-family="Lanxi-WenKai, 'Microsoft YaHei', serif" font-size="9" fill="#A85C32">兑</text>
+<text x="464.4" y="235.6" text-anchor="start" font-family="Consolas, monospace" font-size="9.5" fill="#334EAC">288.33</text>
+<circle cx="500.0" cy="370.0" r="21" fill="#F7F2EB" stroke="#081F5C" stroke-width="1.8"/>
+<text x="500.0" y="371.0" text-anchor="middle" font-family="Consolas, monospace" font-size="11" font-weight="700" fill="#081F5C">E4</text>
+<text x="500.0" y="383.0" text-anchor="middle" font-family="Lanxi-WenKai, 'Microsoft YaHei', serif" font-size="9" fill="#A85C32">离</text>
+<text x="540.0" y="370.0" text-anchor="start" font-family="Consolas, monospace" font-size="9.5" fill="#334EAC">323.63</text>
+<circle cx="457.3" cy="497.3" r="21" fill="#F7F2EB" stroke="#081F5C" stroke-width="1.8"/>
+<text x="457.3" y="498.3" text-anchor="middle" font-family="Consolas, monospace" font-size="11" font-weight="700" fill="#081F5C">F4</text>
+<text x="457.3" y="510.3" text-anchor="middle" font-family="Lanxi-WenKai, 'Microsoft YaHei', serif" font-size="9" fill="#A85C32">震</text>
+<text x="485.6" y="525.6" text-anchor="start" font-family="Consolas, monospace" font-size="9.5" fill="#334EAC">342.88</text>
+<circle cx="330.0" cy="570.0" r="21" fill="#F7F2EB" stroke="#081F5C" stroke-width="1.8"/>
+<text x="330.0" y="571.0" text-anchor="middle" font-family="Consolas, monospace" font-size="11" font-weight="700" fill="#081F5C">G4</text>
+<text x="330.0" y="583.0" text-anchor="middle" font-family="Lanxi-WenKai, 'Microsoft YaHei', serif" font-size="9" fill="#A85C32">巽</text>
+<text x="330.0" y="610.0" text-anchor="middle" font-family="Consolas, monospace" font-size="9.5" fill="#334EAC">384.87</text>
+<circle cx="174.4" cy="525.6" r="21" fill="#F7F2EB" stroke="#081F5C" stroke-width="1.8"/>
+<text x="174.4" y="526.6" text-anchor="middle" font-family="Consolas, monospace" font-size="11" font-weight="700" fill="#081F5C">A4</text>
+<text x="174.4" y="538.6" text-anchor="middle" font-family="Lanxi-WenKai, 'Microsoft YaHei', serif" font-size="9" fill="#A85C32">坎</text>
+<text x="146.2" y="553.8" text-anchor="end" font-family="Consolas, monospace" font-size="9.5" fill="#334EAC">432.00</text>
+<circle cx="90.0" cy="370.0" r="21" fill="#F7F2EB" stroke="#081F5C" stroke-width="1.8"/>
+<text x="90.0" y="371.0" text-anchor="middle" font-family="Consolas, monospace" font-size="11" font-weight="700" fill="#081F5C">B4</text>
+<text x="90.0" y="383.0" text-anchor="middle" font-family="Lanxi-WenKai, 'Microsoft YaHei', serif" font-size="9" fill="#A85C32">艮</text>
+<text x="50.0" y="370.0" text-anchor="end" font-family="Consolas, monospace" font-size="9.5" fill="#334EAC">484.90</text>
+<circle cx="153.2" cy="193.2" r="21" fill="#F7F2EB" stroke="#081F5C" stroke-width="1.8"/>
+<text x="153.2" y="194.2" text-anchor="middle" font-family="Consolas, monospace" font-size="11" font-weight="700" fill="#081F5C">C5</text>
+<text x="153.2" y="206.2" text-anchor="middle" font-family="Lanxi-WenKai, 'Microsoft YaHei', serif" font-size="9" fill="#A85C32">坤</text>
+<text x="124.9" y="164.9" text-anchor="end" font-family="Consolas, monospace" font-size="9.5" fill="#334EAC">513.74</text>
+<circle cx="330" cy="370.0" r="30" fill="none" stroke="#7096D1" stroke-width="1" stroke-dasharray="3 4"/>
+<text x="330" y="368.0" text-anchor="middle" font-family="Lanxi-WenKai, 'Microsoft YaHei', serif" font-size="11" fill="#081F5C">八音</text>
+<text x="330" y="382.0" text-anchor="middle" font-family="Lanxi-WenKai, 'Microsoft YaHei', serif" font-size="9" fill="#7096D1">大调音阶</text>
+<text x="756.0" y="158" text-anchor="middle" font-family="Lanxi-WenKai, 'Microsoft YaHei', serif" font-size="13" font-weight="700" fill="#081F5C">洛书九宫</text>
+<text x="756.0" y="174" text-anchor="middle" font-family="Lanxi-WenKai, 'Microsoft YaHei', serif" font-size="9.5" fill="#7096D1">戴九履一 · 左三右七</text>
+<rect x="660" y="180" width="64" height="64" fill="#F7F2EB" stroke="#334EAC" stroke-width="1"/>
+<text x="692.0" y="208.0" text-anchor="middle" font-family="Consolas, monospace" font-size="20" font-weight="700" fill="#081F5C">4</text>
+<text x="692.0" y="228.0" text-anchor="middle" font-family="Lanxi-WenKai, 'Microsoft YaHei', serif" font-size="10" fill="#A85C32">巽</text>
+<rect x="724" y="180" width="64" height="64" fill="#F7F2EB" stroke="#334EAC" stroke-width="1"/>
+<text x="756.0" y="208.0" text-anchor="middle" font-family="Consolas, monospace" font-size="20" font-weight="700" fill="#081F5C">9</text>
+<text x="756.0" y="228.0" text-anchor="middle" font-family="Lanxi-WenKai, 'Microsoft YaHei', serif" font-size="10" fill="#A85C32">离</text>
+<rect x="788" y="180" width="64" height="64" fill="#F7F2EB" stroke="#334EAC" stroke-width="1"/>
+<text x="820.0" y="208.0" text-anchor="middle" font-family="Consolas, monospace" font-size="20" font-weight="700" fill="#081F5C">2</text>
+<text x="820.0" y="228.0" text-anchor="middle" font-family="Lanxi-WenKai, 'Microsoft YaHei', serif" font-size="10" fill="#A85C32">坤</text>
+<rect x="660" y="244" width="64" height="64" fill="#F7F2EB" stroke="#334EAC" stroke-width="1"/>
+<text x="692.0" y="272.0" text-anchor="middle" font-family="Consolas, monospace" font-size="20" font-weight="700" fill="#081F5C">3</text>
+<text x="692.0" y="292.0" text-anchor="middle" font-family="Lanxi-WenKai, 'Microsoft YaHei', serif" font-size="10" fill="#A85C32">震</text>
+<rect x="724" y="244" width="64" height="64" fill="#EFE6D8" stroke="#A85C32" stroke-width="1.6"/>
+<text x="756.0" y="272.0" text-anchor="middle" font-family="Consolas, monospace" font-size="20" font-weight="700" fill="#081F5C">5</text>
+<text x="756.0" y="292.0" text-anchor="middle" font-family="Lanxi-WenKai, 'Microsoft YaHei', serif" font-size="10" fill="#A85C32">中</text>
+<rect x="788" y="244" width="64" height="64" fill="#F7F2EB" stroke="#334EAC" stroke-width="1"/>
+<text x="820.0" y="272.0" text-anchor="middle" font-family="Consolas, monospace" font-size="20" font-weight="700" fill="#081F5C">7</text>
+<text x="820.0" y="292.0" text-anchor="middle" font-family="Lanxi-WenKai, 'Microsoft YaHei', serif" font-size="10" fill="#A85C32">兑</text>
+<rect x="660" y="308" width="64" height="64" fill="#F7F2EB" stroke="#334EAC" stroke-width="1"/>
+<text x="692.0" y="336.0" text-anchor="middle" font-family="Consolas, monospace" font-size="20" font-weight="700" fill="#081F5C">8</text>
+<text x="692.0" y="356.0" text-anchor="middle" font-family="Lanxi-WenKai, 'Microsoft YaHei', serif" font-size="10" fill="#A85C32">艮</text>
+<rect x="724" y="308" width="64" height="64" fill="#F7F2EB" stroke="#334EAC" stroke-width="1"/>
+<text x="756.0" y="336.0" text-anchor="middle" font-family="Consolas, monospace" font-size="20" font-weight="700" fill="#081F5C">1</text>
+<text x="756.0" y="356.0" text-anchor="middle" font-family="Lanxi-WenKai, 'Microsoft YaHei', serif" font-size="10" fill="#A85C32">坎</text>
+<rect x="788" y="308" width="64" height="64" fill="#F7F2EB" stroke="#334EAC" stroke-width="1"/>
+<text x="820.0" y="336.0" text-anchor="middle" font-family="Consolas, monospace" font-size="20" font-weight="700" fill="#081F5C">6</text>
+<text x="820.0" y="356.0" text-anchor="middle" font-family="Lanxi-WenKai, 'Microsoft YaHei', serif" font-size="10" fill="#A85C32">乾</text>
+<text x="24" y="706" font-family="Lanxi-WenKai, 'Microsoft YaHei', serif" font-size="10.5" fill="#7096D1">半音间隔 2 2 1 2 2 2 1 = 大调音阶（全全半全全全半）</text>
+<text x="24" y="724" font-family="Lanxi-WenKai, 'Microsoft YaHei', serif" font-size="10.5" fill="#7096D1">A4 = 432.00 Hz 为基准；十二平均律 f(n) = 432 × 2^((n−69)/12)</text>
+<text x="24" y="742" font-family="Lanxi-WenKai, 'Microsoft YaHei', serif" font-size="9.5" fill="#7096D1">企业标准 A.1 · 432 Hz 体系 · 仅用于产品编码与文化主题设计</text>
+</svg>
