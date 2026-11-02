@@ -274,7 +274,8 @@
     if(sv){
       // 显示累计度数（不归一化），这样能看出转了几圈
       var deg=FLAT_SPIN*180/Math.PI;
-      sv.textContent = deg.toFixed(0)+'°';
+      var turns=Math.floor(Math.abs(deg)/360);
+      sv.textContent = deg.toFixed(0)+'°'+(turns?('（'+turns+' 圈）'):'');
     }
     // 档位高亮：离哪个档最近就亮哪个
     var btns=document.querySelectorAll('[data-pitch]');
@@ -321,8 +322,8 @@
   (function(){
     var STEP = Math.PI*2/5;
     var L=document.getElementById('spinL'), Rr=document.getElementById('spinR');
-    if(L) L.onclick=function(){ FLAT_SPIN-=STEP; drawFlat(); };
-    if(Rr) Rr.onclick=function(){ FLAT_SPIN+=STEP; drawFlat(); };
+    if(L) L.onclick=function(){ FLAT_SPIN-=STEP; yaw-=STEP; draw(); drawFlat(); };
+    if(Rr) Rr.onclick=function(){ FLAT_SPIN+=STEP; yaw+=STEP; draw(); drawFlat(); };
   })();
 
   // 俯仰快捷档位
