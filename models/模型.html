@@ -208,7 +208,7 @@
     var W=800,H=620,cx=300,cy=320;
     svg.appendChild(el('rect',{width:W,height:H,fill:PAPER}));
     svg.appendChild(el('text',{x:20,y:34,'font-size':19,'font-weight':700,fill:INK},'八音 · 八卦 · 八边形'));
-    svg.appendChild(el('text',{x:20,y:54,'font-size':11,fill:MUTED},'半径 = 频率对数 ｜ 点顶点试听 ｜ 右侧九宫可旋宫'));
+    svg.appendChild(el('text',{x:20,y:54,'font-size':11,fill:MUTED},'半径 = 频率对数 ｜ 点顶点试听 ｜ 宫位下拉对八音同样生效'));
     var lo=256.87,hi=513.74,pts=[];
     BAYIN.forEach(function(b,i){
       var ang=Math.PI/180*(-90+i*45), r=lr(b.f,lo,hi,110,190);
@@ -234,9 +234,10 @@
       var lx=cx+(p.r+38)*Math.cos(p.ang), ly=cy+(p.r+38)*Math.sin(p.ang);
       var anch='middle';
       if(Math.cos(p.ang)>.35) anch='start'; else if(Math.cos(p.ang)<-.35) anch='end';
-      g.appendChild(el('text',{x:lx,y:ly,'text-anchor':anch,'font-size':9,fill:BLUE,'font-family':'monospace'},p.d.f.toFixed(2)));
+      g.appendChild(el('text',{x:lx,y:ly,'text-anchor':anch,'font-size':9,fill:BLUE,'font-family':'monospace'},(p.d.f*Math.pow(2,GONG_IDX/12)).toFixed(2)));
       g.addEventListener('click',function(){
-        play(p.d.file,p.d.f,p.d.n);
+        var f2=p.d.f*Math.pow(2,GONG_IDX/12);
+        play('bayin_'+GONG_PY[GONG_IDX]+'_'+p.d.n+'.wav', f2, p.d.n, 0);
         g.classList.add('playing');
         setTimeout(function(){g.classList.remove('playing')},400);
       });
@@ -281,10 +282,12 @@
   };
   document.getElementById('seqBayin').onclick=function(){
     var nodes=document.querySelectorAll('#bayinSvg .node');
+    var scale=Math.pow(2,GONG_IDX/12);
+    var list=BAYIN.map(function(b){ return {file:'bayin_'+GONG_PY[GONG_IDX]+'_'+b.n+'.wav', f:b.f*scale, n:b.n}; });
     var i=0;
     (function step(){
-      if(i>=BAYIN.length){ if(LOOP){ i=0; setTimeout(step, SEQ_GAP*1000); } return; }
-      var it=BAYIN[i];
+      if(i>=list.length){ if(LOOP){ i=0; setTimeout(step, SEQ_GAP*1000); } return; }
+      var it=list[i];
       play(it.file,it.f,it.n,0);
       var g=nodes[i]; if(g){ g.classList.add('playing'); setTimeout(function(){g.classList.remove('playing');},600); }
       i++; setTimeout(step, SEQ_GAP*1000);
@@ -307,7 +310,7 @@
       var txt=this.options[this.selectedIndex].textContent.replace('宫位：','');
       document.getElementById('readout').textContent =
         '已旋宫到 '+txt+'（整体 '+(HALF>=0?'+':'')+HALF+' 半音，相对关系不变；用预渲染音频，不靠变速）';
-      drawWuyin();                     // 重绘频率标签
+      drawWuyin(); drawBayin();        // 两个视图的频率标签都重算
     };
   })();
   // 播放间隔
@@ -334,7 +337,7 @@
     document.getElementById('modeWuyin').className = isW?'on':'';
     document.getElementById('modeBayin').className = isW?'':'on';
     document.getElementById('seqWuyin').style.display = isW?'':'none';
-    var gs=document.getElementById('gongSel'); if(gs) gs.style.display = isW?'':'none';
+    var gs=document.getElementById('gongSel'); if(gs) gs.style.display='';
     document.getElementById('seqBayin').style.display = isW?'none':'';
     document.getElementById('rotBtn').style.display = isW?'none':'';
     if(!isW) drawNine();
