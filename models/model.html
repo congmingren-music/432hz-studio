@@ -56,14 +56,13 @@
   <span id="seqGapV" style="font-size:11px;color:#7096D1;font-family:monospace">0.95s</span>
   <label style="font-size:11.5px;color:#081F5C;display:flex;align-items:center;gap:4px"><input type="checkbox" id="loopChk"> 循环</label>
   <button id="seqBayin" style="display:none">顺序播放八音</button>
-  <button id="rotBtn">九宫旋宫：F#宫 → C宫</button>
   <span id="rotLabel" style="font-size:11.5px;color:var(--muted)">当前：F# 宫（企业标准）</span>
 </div>
 <div class="readout" id="readout">就绪 · 点顶点试听</div>
 <div class="wrap">
   <div class="card" id="wuyinBox"><svg id="wuyinSvg" viewBox="0 0 720 640" width="720" height="640" style="display:block;width:100%;max-width:720px;height:auto"></svg></div>
   <div class="card" id="bayinBox" style="display:none"><svg id="bayinSvg" viewBox="0 0 800 620" width="800" height="620" style="display:block;width:100%;max-width:800px;height:auto"></svg>
-    <div class="hint">洛书九宫：戴九履一，左三右七，二四为肩，六八为足。旋宫时九个方位整体旋转，<b>位置变、相对关系不变</b>。</div>
+    <div class="hint">洛书九宫：戴九履一，左三右七，二四为肩，六八为足。<b>上方「宫位」切换时，九个方位与音高同步旋转</b>——位置变、相对关系不变。</div>
   </div>
   <div class="card" id="nineBox" style="display:none">
     <div style="font-size:13px;font-weight:700;margin-bottom:8px">洛书九宫</div>
@@ -258,7 +257,7 @@
     for(var r=0;r<3;r++){
       for(var c=0;c<3;c++){
         var num=LUOSHU[r][c];
-        var shown = rot ? (num+5-1)%9+1 : num;   // 旋宫：整体移 5 位（F#宫→C宫）
+        var shown = (num + GONG_IDX - 1) % 9 + 1;   // 九宫随宫位整体旋转
         var d=document.createElement('div');
         d.className='cell'+(num===5?' mid':'');
         d.innerHTML='<b>'+shown+'</b><span>'+NUM2GUA[shown]+'</span>';
@@ -310,7 +309,9 @@
       var txt=this.options[this.selectedIndex].textContent.replace('宫位：','');
       document.getElementById('readout').textContent =
         '已旋宫到 '+txt+'（整体 '+(HALF>=0?'+':'')+HALF+' 半音，相对关系不变；用预渲染音频，不靠变速）';
-      drawWuyin(); drawBayin();        // 两个视图的频率标签都重算
+      drawWuyin(); drawBayin(); drawNine();   // 频率标签与九宫一起重算
+      var rl=document.getElementById('rotLabel');
+      if(rl) rl.textContent = '当前：'+txt;
     };
   })();
   // 播放间隔
@@ -322,12 +323,7 @@
     document.getElementById('seqGapV').textContent=SEQ_GAP.toFixed(2)+'s';
   };
 
-  document.getElementById('rotBtn').onclick=function(){
-    rot=rot?0:1;
-    drawNine();
-    document.getElementById('rotLabel').textContent = rot ? '当前：C 宫（旋宫后）' : '当前：F# 宫（企业标准）';
-    this.textContent = rot ? '复原：回 F#宫' : '旋宫：F#宫 → C宫';
-  };
+  // 九宫旋宫改由「宫位下拉」统一驱动（见 sel.onchange）
 
   function show(which){
     var isW = which==='w';
@@ -339,7 +335,6 @@
     document.getElementById('seqWuyin').style.display = isW?'':'none';
     var gs=document.getElementById('gongSel'); if(gs) gs.style.display='';
     document.getElementById('seqBayin').style.display = isW?'none':'';
-    document.getElementById('rotBtn').style.display = isW?'none':'';
     if(!isW) drawNine();
   }
   document.getElementById('modeWuyin').onclick=function(){ show('w'); };
