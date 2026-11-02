@@ -31,7 +31,7 @@ FILES = [
     "make_voice.ps1",
 ]
 
-MSG = "模型加十二宫位选择与播放间隔控制"
+MSG = "补推最近改动：俯仰跟随模式、旋转方向修复"
 
 
 def req(method, url, token, data=None):
