@@ -35,7 +35,9 @@
   <button id="btnWuyin">只看五音</button>
   <button id="btnAll" class="on">全部十二音</button>
   <button id="btnSpin">自动旋转</button>
-  <button id="btnSheng" class="on">相生螺旋线</button>
+  <button id="btnSheng" class="on">相生</button>
+  <button id="btnKe" class="on">相克</button>
+  <button id="btnFlat">平面对照</button>
   <button id="btnOct">增高八度（+1）</button>
   <select id="gongSel3d" style="font-size:12px;padding:5px 8px;border:1px solid #d8cfc0;border-radius:6px;background:#fff;color:#081F5C">
     <option value="0">宫位：F#宫（企业标准）</option>
@@ -54,7 +56,8 @@
 </div>
 <div id="stage">
   <canvas id="cv"></canvas>
-  <div class="readout" id="ro">拖拽旋转 · 滚轮缩放 · 点圆点试听（若画面空白，地址后加 #img）</div>
+  <div id="flatBox" style="position:absolute;right:20px;top:60px;display:none;background:rgba(247,242,235,.96);border:1px solid #e6dccb;border-radius:8px;padding:8px"><div style="font-size:11px;color:#7096D1;text-align:center;margin-bottom:4px">平面（只看音级）</div><div id="flat" style="width:220px;height:220px"></div></div>
+<div class="readout" id="ro">拖拽旋转 · 滚轮缩放 · 点圆点试听（若画面空白，地址后加 #img）</div>
   <div class="hint">五音角度：徵 30° / 羽 60° / 宫 150° / 商 210° / 角 330°（C = 0°）<br>螺旋上升一层 = 一个八度；五音每层重复一次，这就是「五声」的周期结构。</div>
 </div>
 <footer>企业标准《企业定义频率系列》· 仅用于产品编码与文化主题设计，不构成生理、医疗或生物学效应声明。</footer>
@@ -82,6 +85,8 @@
 
   var showAll=true, autoSpin=false, octaves=3, yaw=0.55, pitch=1.30, zoom=1.05;
   var SHOW_SHENG=true;   // 五音相生螺旋线
+  var SHOW_KE=true;      // 五音相克螺旋线
+  var SHOW_FLAT=false;   // 平面对照
   var R=170, LAYER=115;           // 螺旋半径 / 每层高度
 
   function midiHz(m){ return BASE_HZ * Math.pow(2,(m-69)/12); }
@@ -174,6 +179,26 @@
       // 闭合：最后一层角 → 回到最开始（视觉上就是螺旋收尾）
     }
 
+    // 五音相克螺旋线（另一组色，虚线）：徵→商→角→宫→羽→徵
+    if(SHOW_KE && !showAll){
+      var KE=['C#','G#','A#','F#','D#'];
+      var byKey2={};
+      proj.forEach(function(q){ byKey2[q.p.name+'@'+q.p.layer]=q; });
+      ctx.strokeStyle='rgba(51,78,172,.45)';
+      ctx.lineWidth=1.2;
+      ctx.setLineDash([5,4]);
+      var prev2=null;
+      for(var L2=0;L2<=octaves-1;L2++){
+        for(var j=0;j<KE.length;j++){
+          var q2=byKey2[KE[j]+'@'+L2];
+          if(!q2) continue;
+          if(prev2){ ctx.beginPath(); ctx.moveTo(prev2.sx,prev2.sy); ctx.lineTo(q2.sx,q2.sy); ctx.stroke(); }
+          prev2=q2;
+        }
+      }
+      ctx.setLineDash([]);
+    }
+
     // 点
     hit=[];
     proj.forEach(function(q){
@@ -196,6 +221,41 @@
       }
       hit.push({x:q.sx,y:q.sy,r:Math.max(10,r+6),p:p});
     });
+  }
+
+  // ── 平面对照：俯视五角星（忽略八度，只看音级）。用 SVG，避免 canvas 在部分环境不合成 ──
+  function drawFlat(){
+    var box=document.getElementById('flat');
+    if(!box) return;
+    var W2=220, H2=220, cx2=W2/2, cy2=H2/2, R2=78;
+    var SHENG=['C#','F#','G#','D#','A#'];     // 徵 宫 商 羽 角（相生序）
+    var P=[];
+    SHENG.forEach(function(name,i2){
+      var ang=(i2/5)*Math.PI*2 - Math.PI/2;
+      P.push({x:cx2+R2*Math.cos(ang), y:cy2+R2*Math.sin(ang), name:name});
+    });
+    var s='';
+    // 相生（五边形边）
+    var d='';
+    P.forEach(function(pt,i3){ d += (i3?'L':'M') + pt.x.toFixed(1) + ',' + pt.y.toFixed(1); });
+    d += 'Z';
+    s += '<path d="'+d+'" fill="none" stroke="rgba(168,92,50,.8)" stroke-width="1.8"/>';
+    // 相克（对角线，虚线）
+    if(SHOW_KE){
+      for(var k=0;k<5;k++){
+        var a=P[k], b=P[(k+2)%5];
+        s += '<line x1="'+a.x.toFixed(1)+'" y1="'+a.y.toFixed(1)+'" x2="'+b.x.toFixed(1)+'" y2="'+b.y.toFixed(1)+
+             '" stroke="rgba(51,78,172,.55)" stroke-width="1.2" stroke-dasharray="4 3"/>';
+      }
+    }
+    // 顶点
+    P.forEach(function(pt){
+      var wy=WUYIN[pt.name];
+      var col=COLOR[WUXING[wy]]||'#334EAC';
+      s += '<circle cx="'+pt.x.toFixed(1)+'" cy="'+pt.y.toFixed(1)+'" r="13" fill="'+col+'" stroke="#F7F2EB" stroke-width="1.6"/>';
+      s += '<text x="'+pt.x.toFixed(1)+'" y="'+(pt.y-17).toFixed(1)+'" text-anchor="middle" font-size="11" fill="#081F5C" font-family="Microsoft YaHei, sans-serif">'+wy+'</text>';
+    });
+    box.innerHTML = '<svg width="'+W2+'" height="'+H2+'" viewBox="0 0 '+W2+' '+H2+'">'+s+'</svg>';
   }
 
   // ── 交互 ──
@@ -260,6 +320,16 @@
     SHOW_SHENG=!SHOW_SHENG; this.className=SHOW_SHENG?'on':'';
     draw();
   };
+  document.getElementById('btnKe').onclick=function(){
+    SHOW_KE=!SHOW_KE; this.className=SHOW_KE?'on':'';
+    draw();
+  };
+  document.getElementById('btnFlat').onclick=function(){
+    SHOW_FLAT=!SHOW_FLAT; this.className=SHOW_FLAT?'on':'';
+    var fb=document.getElementById('flatBox');
+    fb.style.display = SHOW_FLAT ? '' : 'none';
+    if(SHOW_FLAT) drawFlat();
+  };
   document.getElementById('btnOct').onclick=function(){
     octaves = octaves>=4?2:octaves+1;
     this.textContent='增高八度（当前 '+octaves+' 层）';
@@ -281,7 +351,7 @@
       cv.style.visibility='hidden'; }
     im.src=cv.toDataURL();
   }
-  try{ resize(); draw(); if(location.hash==='#img'){ toImg(); } }
+  try{ resize(); draw(); drawFlat(); if(location.hash==='#img'){ toImg(); } }
   catch(e){ document.getElementById('ro').textContent='初始化出错: '+e.message; }
 })();
 </script>
