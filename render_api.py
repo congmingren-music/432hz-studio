@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """432Hz 工作室 · 渲染引擎
 
 参数化的采样渲染核心，供 HTTP 服务调用。
@@ -630,24 +630,54 @@ TAIL = {
 }
 
 
-def _tail_keep(midi):
+# 按音源覆盖余音配置（2026-11-02）。不同乐器的自然余音本来差很多：
+# 编钟一击能响 3–5 秒、长笛几乎没余音、古琴散音能拖很久。
+# 上层用 TAIL 的默认值，这里按音源覆盖其中任意字段（未覆盖的沿用 TAIL）。
+TAIL_BY = {
+    "bell":    {"low_keep": 4.5, "mid_keep": 5.5, "high_keep": 6.5, "tail_fade": 2.0},
+    "guqinfan": {"low_keep": 3.5, "mid_keep": 4.5, "high_keep": 6.0, "tail_fade": 1.6},
+    "guqin":   {"low_keep": 3.0, "mid_keep": 4.0, "high_keep": 5.5, "tail_fade": 1.5},
+    "guzheng": {"low_keep": 2.0, "mid_keep": 2.8, "high_keep": 3.8, "tail_fade": 1.0},
+    "flute":   {"low_keep": 1.0, "mid_keep": 1.2, "high_keep": 1.5, "tail_fade": 0.5},
+    "xiao":    {"low_keep": 1.2, "mid_keep": 1.5, "high_keep": 1.8, "tail_fade": 0.6},
+    "erhu":    {"low_keep": 1.5, "mid_keep": 2.0, "high_keep": 2.5, "tail_fade": 0.8},
+    "piano":   {"low_keep": 2.5, "mid_keep": 3.0, "high_keep": 4.0, "tail_fade": 1.2},
+    "suona":   {"low_keep": 1.2, "mid_keep": 1.5, "high_keep": 2.0, "tail_fade": 0.6},
+}
+
+
+def _tail_cfg(timbre=None):
+    """取某音源生效的余音配置：TAIL 默认值 + TAIL_BY 覆盖。"""
+    cfg = dict(TAIL)
+    if timbre:
+        cfg.update(TAIL_BY.get(str(timbre)) or {})
+    return cfg
+
+
+def _tail_keep(midi, timbre=None):
     """按音高决定这个音保留多长的余音（秒）。"""
-    if not TAIL.get("dynamic"):
-        return float(TAIL["min_keep"])
-    if midi < int(TAIL["low_midi"]):
-        return float(TAIL["low_keep"])
-    if midi >= int(TAIL["high_midi"]):
-        return float(TAIL["high_keep"])
-    return float(TAIL["mid_keep"])
+    cfg = _tail_cfg(timbre)
+    if not cfg.get("dynamic"):
+        return float(cfg["min_keep"])
+    if midi < int(cfg["low_midi"]):
+        return float(cfg["low_keep"])
+    if midi >= int(cfg["high_midi"]):
+        return float(cfg["high_keep"])
+    return float(cfg["mid_keep"])
 
 
 def _tail_max():
-    """所有可能余音长度里的最大值，用于分配缓冲区。"""
+    """所有音源、所有音区里最长的余音，用于分配缓冲区。"""
     if not TAIL.get("on"):
         return 0.0
-    if not TAIL.get("dynamic"):
-        return float(TAIL["min_keep"])
-    return max(float(TAIL["low_keep"]), float(TAIL["mid_keep"]), float(TAIL["high_keep"]))
+    best = 0.0
+    for tid in [None] + list(TAIL_BY):
+        cfg = _tail_cfg(tid)
+        if not cfg.get("dynamic"):
+            best = max(best, float(cfg["min_keep"]))
+        else:
+            best = max(best, float(cfg["low_keep"]), float(cfg["mid_keep"]), float(cfg["high_keep"]))
+    return best
 
 
 def _render_one(src, sample, midi, dur, tmp_dir, tag):
@@ -673,11 +703,12 @@ def _render_one(src, sample, midi, dur, tmp_dir, tag):
     parts += _notch_filters(sample["key"], target)
     parts += ["afade=t=in:st=0:d=0.008"]
     if TAIL.get("on"):
-        # 保留余音；长度按音高动态取（低音短、高音长）
-        keep = max(_tail_keep(midi), dur)
+        # 保留余音；长度按「音源 + 音高」动态取（编钟长、长笛短；低音短、高音长）
+        _tc = _tail_cfg(src.get("id"))
+        _fade = float(_tc["tail_fade"])
+        keep = max(_tail_keep(midi, src.get("id")), dur)
         parts += [f"atrim=0:{keep:.3f}",
-                  f"afade=t=out:st={max(0.0, keep - float(TAIL['tail_fade'])):.3f}"
-                  f":d={float(TAIL['tail_fade']):.3f}"]
+                  f"afade=t=out:st={max(0.0, keep - _fade):.3f}:d={_fade:.3f}"]
     else:
         fade = min(0.6, dur * 0.5)
         parts += [f"atrim=0:{dur:.3f}",
