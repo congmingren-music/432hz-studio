@@ -3,8 +3,10 @@ __pycache__/
 *.pyo
 # 界面截图与本地生成物
 *.png
-# 采样（用 fetch_samples.py 下载，不入库）
-samples/
+# 采样：默认不入库（用 fetch_samples.py 下载）；guqin/ 是用户提供的独家素材，保留
+samples/*
+!samples/guqin/
+!samples/guqin/**
 # 渲染输出
 out/
 # 古琴曲库（lukewys/Guqin-Dataset，无 LICENSE，学术用途；不入公开仓库）
