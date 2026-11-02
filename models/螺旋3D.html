@@ -324,13 +324,18 @@
   // 旋转步进（72° = 五音均分，正好跳到下一个音的方位）
   (function(){
     var STEP_DEG = 72;              // 72° = 五音均分；30° = 十二音一格
+    try{ var saved=localStorage.getItem('helixStep'); if(saved) STEP_DEG=parseInt(saved,10)||72; }catch(e){}
     var deg2rad = function(d){ return d*Math.PI/180; };
     var L=document.getElementById('spinL'), Rr=document.getElementById('spinR');
     var S=document.getElementById('stepSel');
-    if(S) S.onclick=function(){
-      STEP_DEG = (STEP_DEG===72) ? 30 : 72;
+    if(S){
       S.textContent = STEP_DEG+'°';
-    };
+      S.onclick=function(){
+        STEP_DEG = (STEP_DEG===72) ? 30 : 72;
+        S.textContent = STEP_DEG+'°';
+        try{ localStorage.setItem('helixStep', String(STEP_DEG)); }catch(e){}
+      };
+    }
     if(L) L.onclick=function(){ var s=deg2rad(STEP_DEG); FLAT_SPIN-=s; yaw-=s; draw(); drawFlat(); };
     if(Rr) Rr.onclick=function(){ var s=deg2rad(STEP_DEG); FLAT_SPIN+=s; yaw+=s; draw(); drawFlat(); };
   })();
@@ -349,7 +354,7 @@
   cv.addEventListener('pointerup',function(){ drag=false; });
   cv.addEventListener('pointermove',function(e){
     if(!drag) return;
-    var dYaw = (e.clientX-lx)*0.008;
+    var dYaw = (e.clientX-lx)*0.01;
     yaw += dYaw;
     FLAT_SPIN += dYaw;                 // 同步平面图
     pitch += (e.clientY-ly)*0.006;
