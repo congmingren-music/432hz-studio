@@ -305,10 +305,13 @@
     fb.addEventListener('pointerup',function(){ dragging=false; });
     fb.addEventListener('pointermove',function(e){
       if(!dragging) return;
-      FLAT_SPIN += (e.clientX-lastX)*0.01;
+      var dSpin = (e.clientX-lastX)*0.01;
+      FLAT_SPIN += dSpin;
+      yaw += dSpin;                    // 同步 3D（同一个物体，两个投影）
       FLAT_PITCH += (e.clientY-lastY)*(-0.005);
       FLAT_PITCH = Math.max(-1.0, Math.min(1.0, FLAT_PITCH));   // 负值 = 从下方仰视
-      lastX=e.clientX; lastY=e.clientY; drawFlat();
+      lastX=e.clientX; lastY=e.clientY;
+      draw(); drawFlat();
     });
     fb.addEventListener('wheel',function(e){
       e.preventDefault();
@@ -320,10 +323,16 @@
 
   // 旋转步进（72° = 五音均分，正好跳到下一个音的方位）
   (function(){
-    var STEP = Math.PI*2/5;
+    var STEP_DEG = 72;              // 72° = 五音均分；30° = 十二音一格
+    var deg2rad = function(d){ return d*Math.PI/180; };
     var L=document.getElementById('spinL'), Rr=document.getElementById('spinR');
-    if(L) L.onclick=function(){ FLAT_SPIN-=STEP; yaw-=STEP; draw(); drawFlat(); };
-    if(Rr) Rr.onclick=function(){ FLAT_SPIN+=STEP; yaw+=STEP; draw(); drawFlat(); };
+    var S=document.getElementById('stepSel');
+    if(S) S.onclick=function(){
+      STEP_DEG = (STEP_DEG===72) ? 30 : 72;
+      S.textContent = STEP_DEG+'°';
+    };
+    if(L) L.onclick=function(){ var s=deg2rad(STEP_DEG); FLAT_SPIN-=s; yaw-=s; draw(); drawFlat(); };
+    if(Rr) Rr.onclick=function(){ var s=deg2rad(STEP_DEG); FLAT_SPIN+=s; yaw+=s; draw(); drawFlat(); };
   })();
 
   // 俯仰快捷档位
@@ -340,11 +349,13 @@
   cv.addEventListener('pointerup',function(){ drag=false; });
   cv.addEventListener('pointermove',function(e){
     if(!drag) return;
-    yaw += (e.clientX-lx)*0.008;
+    var dYaw = (e.clientX-lx)*0.008;
+    yaw += dYaw;
+    FLAT_SPIN += dYaw;                 // 同步平面图
     pitch += (e.clientY-ly)*0.006;
     pitch = Math.max(-1.2, Math.min(1.2, pitch));
     lx=e.clientX; ly=e.clientY;
-    draw();
+    draw(); drawFlat();
   });
   cv.addEventListener('wheel',function(e){
     e.preventDefault();
