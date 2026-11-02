@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="920" height="760" viewBox="0 0 920 760">
+<rect width="920" height="760" fill="#F7F2EB"/>
+<text x="460.0" y="46" text-anchor="middle" font-family="Lanxi-WenKai, 'Microsoft YaHei', serif" font-size="24" font-weight="700" fill="#081F5C">五音 · 五行 · 五角星</text>
+<text x="460.0" y="70" text-anchor="middle" font-family="Lanxi-WenKai, 'Microsoft YaHei', serif" font-size="12" fill="#7096D1">半径 = 频率的对数映射　｜　边 = 相生　｜　对角线 = 相克</text>
+<path d="M460.0,214.0 L700.9,305.7 L628.5,615.9 L340.5,548.5 L155.7,285.1 Z" fill="none" stroke="#334EAC" stroke-width="2.2"/>
+<path d="M460.0,214.0 L628.5,615.9 L155.7,285.1 L700.9,305.7 L340.5,548.5 L460.0,214.0" fill="none" stroke="#A85C32" stroke-width="1.6" stroke-dasharray="7 5" opacity="0.85"/>
+<circle cx="460.0" cy="384.0" r="46" fill="none" stroke="#7096D1" stroke-width="1" stroke-dasharray="3 4"/>
+<text x="460.0" y="380.0" text-anchor="middle" font-family="Lanxi-WenKai, 'Microsoft YaHei', serif" font-size="13" fill="#081F5C">相生</text>
+<text x="460.0" y="398.0" text-anchor="middle" font-family="Lanxi-WenKai, 'Microsoft YaHei', serif" font-size="11" fill="#7096D1">火土金水木</text>
+<circle cx="460.0" cy="214.0" r="26" fill="#F7F2EB" stroke="#081F5C" stroke-width="2"/>
+<text x="460.0" y="216.0" text-anchor="middle" font-family="Lanxi-WenKai, 'Microsoft YaHei', serif" font-size="17" font-weight="700" fill="#081F5C">徵</text>
+<text x="460.0" y="230.0" text-anchor="middle" font-family="Lanxi-WenKai, 'Microsoft YaHei', serif" font-size="9" fill="#A85C32">火</text>
+<text x="460.0" y="164.0" text-anchor="middle" font-family="Consolas, monospace" font-size="11" fill="#334EAC">C#4 272.14Hz</text>
+<text x="460.0" y="176.0" text-anchor="middle" font-family="Consolas, monospace" font-size="9" fill="#7096D1">×1.0000</text>
+<circle cx="700.9" cy="305.7" r="26" fill="#F7F2EB" stroke="#081F5C" stroke-width="2"/>
+<text x="700.9" y="307.7" text-anchor="middle" font-family="Lanxi-WenKai, 'Microsoft YaHei', serif" font-size="17" font-weight="700" fill="#081F5C">宫</text>
+<text x="700.9" y="321.7" text-anchor="middle" font-family="Lanxi-WenKai, 'Microsoft YaHei', serif" font-size="9" fill="#A85C32">土</text>
+<text x="744.7" y="287.5" text-anchor="start" font-family="Consolas, monospace" font-size="11" fill="#334EAC">F#4 363.27Hz</text>
+<text x="744.7" y="299.5" text-anchor="start" font-family="Consolas, monospace" font-size="9" fill="#7096D1">×1.3349</text>
+<circle cx="628.5" cy="615.9" r="26" fill="#F7F2EB" stroke="#081F5C" stroke-width="2"/>
+<text x="628.5" y="617.9" text-anchor="middle" font-family="Lanxi-WenKai, 'Microsoft YaHei', serif" font-size="17" font-weight="700" fill="#081F5C">商</text>
+<text x="628.5" y="631.9" text-anchor="middle" font-family="Lanxi-WenKai, 'Microsoft YaHei', serif" font-size="9" fill="#A85C32">金</text>
+<text x="655.5" y="649.1" text-anchor="start" font-family="Consolas, monospace" font-size="11" fill="#334EAC">G#4 407.75Hz</text>
+<text x="655.5" y="661.1" text-anchor="start" font-family="Consolas, monospace" font-size="9" fill="#7096D1">×1.4983</text>
+<circle cx="340.5" cy="548.5" r="26" fill="#F7F2EB" stroke="#081F5C" stroke-width="2"/>
+<text x="340.5" y="550.5" text-anchor="middle" font-family="Lanxi-WenKai, 'Microsoft YaHei', serif" font-size="17" font-weight="700" fill="#081F5C">羽</text>
+<text x="340.5" y="564.5" text-anchor="middle" font-family="Lanxi-WenKai, 'Microsoft YaHei', serif" font-size="9" fill="#A85C32">水</text>
+<text x="313.4" y="581.7" text-anchor="end" font-family="Consolas, monospace" font-size="11" fill="#334EAC">D#4 305.47Hz</text>
+<text x="313.4" y="593.7" text-anchor="end" font-family="Consolas, monospace" font-size="9" fill="#7096D1">×1.1225</text>
+<circle cx="155.7" cy="285.1" r="26" fill="#F7F2EB" stroke="#081F5C" stroke-width="2"/>
+<text x="155.7" y="287.1" text-anchor="middle" font-family="Lanxi-WenKai, 'Microsoft YaHei', serif" font-size="17" font-weight="700" fill="#081F5C">角</text>
+<text x="155.7" y="301.1" text-anchor="middle" font-family="Lanxi-WenKai, 'Microsoft YaHei', serif" font-size="9" fill="#A85C32">木</text>
+<text x="111.9" y="266.9" text-anchor="end" font-family="Consolas, monospace" font-size="11" fill="#334EAC">A#4 457.69Hz</text>
+<text x="111.9" y="278.9" text-anchor="end" font-family="Consolas, monospace" font-size="9" fill="#7096D1">×1.6818</text>
+<text x="28" y="704" font-family="Lanxi-WenKai, 'Microsoft YaHei', serif" font-size="10.5" fill="#A85C32">相克：徵克商 · 商克角 · 角克宫 · 宫克羽 · 羽克徵</text>
+<text x="28" y="722" font-family="Lanxi-WenKai, 'Microsoft YaHei', serif" font-size="10.5" fill="#7096D1">半音间隔 2 / 5 / 2 / 2 / 2 = 五声音阶（宫商角徵羽）</text>
+<text x="28" y="740" font-family="Lanxi-WenKai, 'Microsoft YaHei', serif" font-size="9.5" fill="#7096D1">企业标准 A.2 · 432 Hz 体系 · 仅用于产品编码与文化主题设计</text>
+</svg>
