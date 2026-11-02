@@ -88,6 +88,7 @@
   var SHOW_KE=true;      // 五音相克螺旋线
   var SHOW_FLAT=false;   // 平面对照
   var FLAT_SPIN=0;       // 平面图旋转角（弧度）
+  var FLAT_R=78;         // 平面图半径（缩放）
   var R=170, LAYER=115;           // 螺旋半径 / 每层高度
 
   function midiHz(m){ return BASE_HZ * Math.pow(2,(m-69)/12); }
@@ -228,7 +229,7 @@
   function drawFlat(){
     var box=document.getElementById('flat');
     if(!box) return;
-    var W2=220, H2=220, cx2=W2/2, cy2=H2/2, R2=78;
+    var W2=220, H2=220, cx2=W2/2, cy2=H2/2, R2=FLAT_R;
     var SHENG=['C#','F#','G#','D#','A#'];     // 徵 宫 商 羽 角（相生序）
     var P=[];
     SHENG.forEach(function(name,i2){
@@ -277,6 +278,12 @@
       FLAT_SPIN += (e.clientX-lastX)*0.01;
       lastX=e.clientX; drawFlat();
     });
+    fb.addEventListener('wheel',function(e){
+      e.preventDefault();
+      FLAT_R *= (e.deltaY>0?0.92:1.08);
+      FLAT_R = Math.max(40, Math.min(100, FLAT_R));
+      drawFlat();
+    },{passive:false});
   })();
 
   // ── 交互 ──
@@ -358,7 +365,7 @@
   };
 
   // 自动旋转（用 timer，避免 headless 下 rAF 失控）
-  setInterval(function(){ if(autoSpin){ yaw+=0.006; draw(); } }, 60);
+  setInterval(function(){ if(autoSpin){ yaw+=0.006; FLAT_SPIN+=0.006; draw(); drawFlat(); } }, 60);
 
     // 宫位下拉：只影响试听频率，几何不变（半径固定按基准算，保住对称）
   var gs3=document.getElementById('gongSel3d');
