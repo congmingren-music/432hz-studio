@@ -180,6 +180,15 @@
       <div class="log" id="tailHint" style="margin-top:4px">低音区能量"堵"，余音留短；高音区留长会更自然。编钟余音长、长笛几乎没有。</div>
       <div class="log" id="styleHint" style="margin-top:6px"></div>
 
+      <details style="margin-top:12px">
+        <summary style="cursor:pointer;font-size:12px;color:#5a6b8c">调试信息（当前参数 / 曲目诊断）</summary>
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button class="ghost" id="dbgLoad" style="flex:1;padding:6px">刷新参数</button>
+          <button class="ghost" id="dbgPiece" style="flex:1;padding:6px">诊断选中曲目</button>
+        </div>
+        <pre id="dbgOut" style="margin-top:8px;max-height:320px;overflow:auto;font-size:10px;line-height:1.45;background:#0f1a2e;color:#9fc3e8;padding:10px;border-radius:4px;white-space:pre-wrap"></pre>
+      </details>
+
       <label class="chk" style="margin-top:14px"><input type="checkbox" id="useArrange"> 使用自定义编排</label>
       <div id="arrangeBox" style="display:none;margin-top:10px">
         <div id="timeline"></div>
@@ -995,6 +1004,18 @@
     filterTimer = setTimeout(function(){ pieceQuery = v; renderPieces(); }, 150);
   };
   $('albumFilter').onchange = function(){ pieceAlbum = this.value; renderPieces(); };
+
+  // ── 调试面板 ──
+  function dbgFetch(withPiece){
+    var url = '/api/debug';
+    if (withPiece && state.piece) url += '?piece=' + encodeURIComponent(state.piece);
+    $('dbgOut').textContent = '读取中…';
+    fetch(url).then(function(r){ return r.json(); }).then(function(d){
+      $('dbgOut').textContent = JSON.stringify(d, null, 2);
+    }).catch(function(e){ $('dbgOut').textContent = '失败: ' + e; });
+  }
+  $('dbgLoad').onclick = function(){ dbgFetch(false); };
+  $('dbgPiece').onclick = function(){ dbgFetch(true); };
 
   renderPieces();
   loadPieces();
