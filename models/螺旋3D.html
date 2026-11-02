@@ -309,7 +309,7 @@ try{ var _fp=localStorage.getItem('helixPitch'); if(_fp!==null) FLAT_PITCH=parse
       var dSpin = (e.clientX-lastX)*0.01;
       FLAT_SPIN += dSpin;
       yaw -= dSpin;                    // 同步 3D（方向与平面图一致）
-      FLAT_PITCH += (e.clientY-lastY)*(-0.005);
+      FLAT_PITCH += (e.clientY-lastY)*0.005;   // 向下拖 = 更俯视（与 3D 一致）
       FLAT_PITCH = Math.max(-1.0, Math.min(1.0, FLAT_PITCH));   // 负值 = 从下方仰视
       try{ localStorage.setItem('helixPitch', String(FLAT_PITCH)); }catch(e){}
       lastX=e.clientX; lastY=e.clientY;
