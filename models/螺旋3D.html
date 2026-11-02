@@ -233,10 +233,12 @@
     if(!box) return;
     var W2=220, H2=220, cx2=W2/2, cy2=H2/2, R2=FLAT_R;
     var SHENG=['C#','F#','G#','D#','A#'];     // 徵 宫 商 羽 角（相生序）
+    // ⚠️ 角度必须用真实音级（半音数×30°），不能 72° 均分：
+    // 否则 2D 画的是规则五角星，3D 螺旋用真实角度，俯视对不上。
+    var SEMIS={'C#':0,'D#':2,'F#':5,'G#':7,'A#':9};
     var P=[];
-    // 只做俯仰压扁（不做透视——透视会让五角星在 2D 小图上变形）
-    SHENG.forEach(function(name,i2){
-      var ang=(i2/5)*Math.PI*2 - Math.PI/2 + FLAT_SPIN;
+    SHENG.forEach(function(name){
+      var ang=SEMIS[name]/12*Math.PI*2 - Math.PI/2 + FLAT_SPIN;
       P.push({x:cx2+R2*Math.cos(ang),
               y:cy2+R2*Math.sin(ang)*FLAT_PITCH,
               f:1, name:name});
