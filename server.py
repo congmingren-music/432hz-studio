@@ -162,6 +162,60 @@ class Handler(BaseHTTPRequestHandler):
                 "gain": {"output_db": R.OUTPUT_GAIN_DB, "by": dict(R.GAIN_BY)},
             })
 
+        if p == "/api/debug":
+            # 调试面板：当前全部参数 + 指定曲目的诊断
+            from urllib.parse import parse_qs
+            q = parse_qs(urlparse(self.path).query)
+            pid = (q.get("piece") or [""])[0]
+            info = {
+                "params": {
+                    "TAIL": dict(R.TAIL),
+                    "TAIL_BY": {k: dict(v) for k, v in R.TAIL_BY.items()},
+                    "GAIN_BY": dict(R.GAIN_BY),
+                    "OUTPUT_GAIN_DB": R.OUTPUT_GAIN_DB,
+                    "LIMIT_THRESHOLD": R.LIMIT_THRESHOLD,
+                    "BEAT": dict(R.BEAT),
+                    "COMB": dict(R.COMB),
+                    "TONE_BY": sorted(R.TONE_BY),
+                    "TONE": dict(R.TONE),
+                    "DUAL": dict(R.DUAL),
+                    "DUAL_BY": sorted(R.DUAL_BY),
+                    "SPLIT_DEFAULT": R.SPLIT_DEFAULT,
+                    "NOTCH": dict(R.NOTCH),
+                },
+                "sources": [],
+            }
+            for tid, cfg in R.BUILTIN.items():
+                tl = R._tail_cfg(tid)
+                info["sources"].append({
+                    "id": tid, "label": cfg.get("label", tid),
+                    "samples": len(cfg.get("hz") or {}),
+                    "gain": R.GAIN_BY.get(tid, 1.0),
+                    "tail": {k: tl.get(k) for k in ("low_keep", "mid_keep", "high_keep")},
+                })
+            if pid:
+                try:
+                    notes = R.piece_notes(pid)
+                    ms = [int(n[0]) for n in notes]
+                    span = max(float(n[2]) + float(n[1]) for n in notes)
+                    # 按音域分工看每个音由谁演奏
+                    per = {}
+                    for m in ms:
+                        who = R.SPLIT_DEFAULT[0][0]
+                        for t, lo, hi in R.SPLIT_DEFAULT:
+                            if lo <= m < hi:
+                                who = t
+                                break
+                        per[who] = per.get(who, 0) + 1
+                    info["piece"] = {
+                        "id": pid, "notes": len(notes), "span": round(span, 1),
+                        "low": min(ms), "high": max(ms),
+                        "by_source": per,
+                    }
+                except Exception as e:
+                    info["piece"] = {"error": f"{type(e).__name__}: {e}"}
+            return self._json(info)
+
         if p.startswith("/api/job/"):
             jid = p.rsplit("/", 1)[-1]
             with LOCK:
