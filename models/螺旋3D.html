@@ -36,7 +36,20 @@
   <button id="btnAll" class="on">全部十二音</button>
   <button id="btnSpin">自动旋转</button>
   <button id="btnOct">增高八度（+1）</button>
-  <span style="font-size:11.5px;color:#7096D1" id="gongTxt">宫位：F#宫（企业标准）</span>
+  <select id="gongSel3d" style="font-size:12px;padding:5px 8px;border:1px solid #d8cfc0;border-radius:6px;background:#fff;color:#081F5C">
+    <option value="0">宫位：F#宫（企业标准）</option>
+    <option value="1">宫位：G宫</option>
+    <option value="2">宫位：G#宫</option>
+    <option value="3">宫位：A宫</option>
+    <option value="4">宫位：A#宫</option>
+    <option value="5">宫位：B宫</option>
+    <option value="6">宫位：C宫</option>
+    <option value="7">宫位：C#宫</option>
+    <option value="8">宫位：D宫</option>
+    <option value="9">宫位：D#宫</option>
+    <option value="10">宫位：E宫</option>
+    <option value="11">宫位：F宫</option>
+  </select>
 </div>
 <div id="stage">
   <canvas id="cv"></canvas>
@@ -224,7 +237,20 @@
   // 自动旋转（用 timer，避免 headless 下 rAF 失控）
   setInterval(function(){ if(autoSpin){ yaw+=0.006; draw(); } }, 60);
 
-  try{ resize(); draw(); if(location.hash==='#img'){ var im=document.createElement('img'); im.src=cv.toDataURL(); im.style.cssText='position:absolute;left:0;top:0;width:1174px;height:600px'; document.getElementById('stage').appendChild(im); } var cr=cv.getBoundingClientRect(); document.title += ' | canvas '+cr.width.toFixed(0)+'x'+cr.height.toFixed(0)+' @'+cr.top.toFixed(0)+' css:'+getComputedStyle(cv).height; }catch(e){ document.getElementById('ro').textContent='初始化出错: '+e.message; }
+    // 宫位下拉：只影响试听频率，几何不变（半径固定按基准算，保住对称）
+  var gs3=document.getElementById('gongSel3d');
+  if(gs3){ gs3.onchange=function(){ GONG_IDX=+this.value; draw(); }; }
+  // 把画布转成 img 显示：某些 headless/无 GPU 环境下 canvas 不参与合成，加 #img 兜底
+  function toImg(){
+    var im=document.getElementById('cvimg');
+    if(!im){ im=document.createElement('img'); im.id='cvimg';
+      im.style.cssText='position:absolute;left:0;top:0;width:100%;height:100%';
+      document.getElementById('stage').appendChild(im);
+      cv.style.visibility='hidden'; }
+    im.src=cv.toDataURL();
+  }
+  try{ resize(); draw(); if(location.hash==='#img'){ toImg(); } }
+  catch(e){ document.getElementById('ro').textContent='初始化出错: '+e.message; }
 })();
 </script>
 </body>
