@@ -488,7 +488,8 @@ SPLIT_DEFAULT = [("guzheng", 0, 70), ("flute", 70, 85), ("bell", 85, 128)]
 
 def render_piece(timbre, piece, tempo=1.0, ring=2.0, on_progress=None,
                  alt=None, alt_from=81, alt_to=None, style=None,
-                 shadow=None, shadow_from=78, shadow_gain=0.4, split="default"):
+                 shadow=None, shadow_from=78, shadow_gain=0.4, split="default",
+                 gong=0):
     """整曲渲染。
 
     alt/alt_from/alt_to：**高音段换乐器**。旋律的 midi 落在 [alt_from, alt_to] 区间时
@@ -504,11 +505,17 @@ def render_piece(timbre, piece, tempo=1.0, ring=2.0, on_progress=None,
     背景：古筝只有 35 个采样（五声调弦），半音位和 C6 以上靠变调凑，谐波只有 15–36%；
     中低音区（≤A4）实测 76–99%，是它真正的可用范围。所以让它退守中低音。
 
+    gong：**旋宫（整体移调）半音数**。+N 表示整曲升高 N 个半音。
+    432 体系里五音落在 F#/G#/A#/C#/D# 上，而古琴曲谱的调性固定，
+    所以整曲可能偏离企业标准的宫位——用这个参数试 12 个宫位，挑最对味的。
+    同时会把 split 的音域边界一起平移，保证分工关系不变。
+
     style：驻波方案，见 STYLE_PRESETS（clean/alive/body/rich）。None = 沿用当前全局状态。
     """
     _ensure_dirs()
     if style:
         set_style(style)
+    gong = int(gong or 0)
     src = _resolve_source(timbre)
     alt_src = _resolve_source(alt) if alt else None
     if split == "default":
@@ -541,14 +548,18 @@ def render_piece(timbre, piece, tempo=1.0, ring=2.0, on_progress=None,
         midi, dur = int(n[0]), float(n[1])
         start_t = float(n[2]) if has_start else cursor
         seg_dur = max(0.9, dur * 1.7) * (1.0 / tempo) + ring * 0.35
+        if gong:
+            # 旋宫：整曲平移到另一个宫位。分工（split）的音域边界一起平移，
+            # 否则平移后原本交给人声区的音会掉回古筝、分工关系被破坏。
+            midi = max(12, min(120, midi + gong))
         # 按音域分工优先（split），其次高音段换乐器（alt）
         use_src = src
         if split_layers:
             for layer_src, lo, hi in split_layers:
-                if lo <= midi < hi:
+                if lo + gong <= midi < hi + gong:
                     use_src = layer_src
                     break
-        elif alt_src is not None and midi >= alt_from and (alt_to is None or midi < alt_to):
+        elif alt_src is not None and midi >= alt_from + gong and (alt_to is None or midi < (alt_to or 128) + gong):
             use_src = alt_src
         sig = _note_audio(use_src, midi, seg_dur, f"{i}", tmp_dir)
 
@@ -556,7 +567,7 @@ def render_piece(timbre, piece, tempo=1.0, ring=2.0, on_progress=None,
         i1 = min(i0 + sig.size, buf.size)
         buf[i0:i1] += sig[:i1 - i0]
         # 高音段叠加遮盖层：同音高再叠一层 shadow（编钟），用它盖住刺耳
-        if shadow_src is not None and midi >= shadow_from:
+        if shadow_src is not None and midi >= shadow_from + gong:
             sh = _note_audio(shadow_src, midi, seg_dur * 1.4, f"{i}s", tmp_dir)
             j1 = min(i0 + sh.size, buf.size)
             if i0 < buf.size:
