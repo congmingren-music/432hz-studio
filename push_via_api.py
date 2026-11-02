@@ -9,6 +9,7 @@ import json
 import os
 import sys
 import urllib.error
+import urllib.parse
 import urllib.request
 
 REPO = "congmingren-music/432hz-studio"
@@ -30,7 +31,7 @@ FILES = [
     "make_voice.ps1",
 ]
 
-MSG = "接入真古琴音源、余音按音源区分、调试面板"
+MSG = "五音八音交互模型：真实采样/动画/旋宫，接入工作室界面"
 
 
 def req(method, url, token, data=None):
@@ -72,7 +73,7 @@ def main():
             continue
 
         # 已有文件的 sha（更新必需）
-        meta, err = req("GET", f"{API}/repos/{REPO}/contents/{path}?ref={BRANCH}", token)
+        meta, err = req("GET", f"{API}/repos/{REPO}/contents/{urllib.parse.quote(path)}?ref={BRANCH}", token)
         sha = meta["sha"] if meta else None
 
         with open(local, "rb") as f:
@@ -86,7 +87,7 @@ def main():
         if sha:
             payload["sha"] = sha
 
-        res, err = req("PUT", f"{API}/repos/{REPO}/contents/{path}", token, payload)
+        res, err = req("PUT", f"{API}/repos/{REPO}/contents/{urllib.parse.quote(path)}", token, payload)
         if res:
             ok += 1
             print(f"  ok   {path}")
