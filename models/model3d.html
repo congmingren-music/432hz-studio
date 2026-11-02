@@ -57,7 +57,7 @@
 </div>
 <div id="stage">
   <canvas id="cv"></canvas>
-  <div id="flatBox" style="position:absolute;right:20px;top:60px;display:none;background:rgba(247,242,235,.96);border:1px solid #e6dccb;border-radius:8px;padding:8px"><div style="font-size:10.5px;color:#7096D1;text-align:center;margin-bottom:4px">平面（只看音级）· 上下拖改俯仰</div><div id="flat" style="width:220px;height:220px"></div></div>
+  <div id="flatBox" style="position:absolute;right:20px;top:60px;display:none;background:rgba(247,242,235,.96);border:1px solid #e6dccb;border-radius:8px;padding:8px"><div style="font-size:10.5px;color:#7096D1;text-align:center;margin-bottom:2px">平面（只看音级）· 俯仰 <span id="pitchVal" style="font-family:Consolas,monospace;color:#334EAC">1.00</span></div><div style="display:flex;gap:4px;justify-content:center;margin-bottom:4px"><button data-pitch="1" style="font-size:10px;padding:1px 6px;border:1px solid #d8cfc0;border-radius:3px;background:#fff;color:#334EAC;cursor:pointer">俯视</button><button data-pitch="0.35" style="font-size:10px;padding:1px 6px;border:1px solid #d8cfc0;border-radius:3px;background:#fff;color:#334EAC;cursor:pointer">斜视</button><button data-pitch="-0.6" style="font-size:10px;padding:1px 6px;border:1px solid #d8cfc0;border-radius:3px;background:#fff;color:#334EAC;cursor:pointer">仰视</button></div><div id="flat" style="width:220px;height:220px"></div></div>
 <div class="readout" id="ro">拖拽旋转 · 滚轮缩放 · 点圆点试听（若画面空白，地址后加 #img）</div>
   <div class="hint">五音角度：徵 30° / 羽 60° / 宫 150° / 商 210° / 角 330°（C = 0°）<br>螺旋上升一层 = 一个八度；五音每层重复一次，这就是「五声」的周期结构。</div>
 </div>
@@ -268,6 +268,8 @@
       s += '<text x="'+pt.x.toFixed(1)+'" y="'+(pt.y-17).toFixed(1)+'" text-anchor="middle" font-size="11" fill="#081F5C" font-family="Microsoft YaHei, sans-serif">'+wy+'</text>';
     });
     box.innerHTML = '<svg width="'+W2+'" height="'+H2+'" viewBox="0 0 '+W2+' '+H2+'">'+s+'</svg>';
+    var pv=document.getElementById('pitchVal');
+    if(pv) pv.textContent = FLAT_PITCH.toFixed(2);
   }
 
   // 平面小图拖拽旋转
@@ -295,6 +297,14 @@
       drawFlat();
     },{passive:false});
   })();
+
+  // 俯仰快捷档位
+  Array.prototype.forEach.call(document.querySelectorAll('[data-pitch]'), function(b){
+    b.onclick=function(){
+      FLAT_PITCH = parseFloat(b.getAttribute('data-pitch'));
+      drawFlat();
+    };
+  });
 
   // ── 交互 ──
   var drag=false, lx=0, ly=0;
