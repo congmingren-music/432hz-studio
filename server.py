@@ -222,6 +222,23 @@ class Handler(BaseHTTPRequestHandler):
                 job = dict(JOBS.get(jid, {"status": "unknown"}))
             return self._json(job)
 
+        if p == "/models" or p == "/models/":
+            return self._file(os.path.join(HERE, "models", "模型.html"), "text/html; charset=utf-8")
+
+        if p.startswith("/models/"):
+            rel = unquote(p[len("/models/"):])
+            base = os.path.join(HERE, "models")
+            full = os.path.normpath(os.path.join(base, rel))
+            if not full.startswith(os.path.normpath(base)):
+                return self._json({"error": "bad path"}, 400)
+            if not os.path.isfile(full):
+                return self._json({"error": "not found"}, 404)
+            ext = os.path.splitext(full)[1].lower()
+            ctype = {".html": "text/html; charset=utf-8", ".wav": "audio/wav",
+                     ".svg": "image/svg+xml", ".png": "image/png",
+                     ".json": "application/json; charset=utf-8"}.get(ext, "application/octet-stream")
+            return self._file(full, ctype)
+
         if p.startswith("/files/"):
             name = unquote(p.rsplit("/", 1)[-1])
             if not re.fullmatch(r"[\w\-.]+\.wav", name):
