@@ -35,6 +35,7 @@
   <button id="btnWuyin">只看五音</button>
   <button id="btnAll" class="on">全部十二音</button>
   <button id="btnSpin">自动旋转</button>
+  <button id="btnSheng" class="on">相生螺旋线</button>
   <button id="btnOct">增高八度（+1）</button>
   <select id="gongSel3d" style="font-size:12px;padding:5px 8px;border:1px solid #d8cfc0;border-radius:6px;background:#fff;color:#081F5C">
     <option value="0">宫位：F#宫（企业标准）</option>
@@ -80,6 +81,7 @@
   var GONG_IDX=0;                // 宫位偏移（半音）
 
   var showAll=true, autoSpin=false, octaves=3, yaw=0.55, pitch=1.30, zoom=1.05;
+  var SHOW_SHENG=true;   // 五音相生螺旋线
   var R=170, LAYER=115;           // 螺旋半径 / 每层高度
 
   function midiHz(m){ return BASE_HZ * Math.pow(2,(m-69)/12); }
@@ -144,6 +146,32 @@
       ctx.beginPath();
       chain.forEach(function(c,i){ i?ctx.lineTo(c.sx,c.sy):ctx.moveTo(c.sx,c.sy); });
       ctx.stroke();
+    }
+
+    // 五音相生螺旋线：徵(0°) → 宫(150°) → 商(210°) → 羽(60°) → 角(270°) → 上一层徵
+    // 这条线会跨八度缠绕，比平面五角星多表达了「跨八度也成立」
+    if(SHOW_SHENG && !showAll){
+      var SHENG=['C#','F#','G#','D#','A#'];
+      var byKey={};
+      proj.forEach(function(q){
+        var k=q.p.name+'@'+q.p.layer;
+        byKey[k]=q;
+      });
+      var maxLayer=octaves-1;
+      ctx.strokeStyle='rgba(168,92,50,.5)';
+      ctx.lineWidth=1.3;
+      var prev=null;
+      for(var L=0;L<=maxLayer;L++){
+        for(var i=0;i<SHENG.length;i++){
+          var q=byKey[SHENG[i]+'@'+L];
+          if(!q) continue;
+          if(prev){
+            ctx.beginPath(); ctx.moveTo(prev.sx,prev.sy); ctx.lineTo(q.sx,q.sy); ctx.stroke();
+          }
+          prev=q;
+        }
+      }
+      // 闭合：最后一层角 → 回到最开始（视觉上就是螺旋收尾）
     }
 
     // 点
@@ -227,6 +255,10 @@
   };
   document.getElementById('btnSpin').onclick=function(){
     autoSpin=!autoSpin; this.className=autoSpin?'on':'';
+  };
+  document.getElementById('btnSheng').onclick=function(){
+    SHOW_SHENG=!SHOW_SHENG; this.className=SHOW_SHENG?'on':'';
+    draw();
   };
   document.getElementById('btnOct').onclick=function(){
     octaves = octaves>=4?2:octaves+1;
