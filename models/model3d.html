@@ -91,6 +91,7 @@
   var FLAT_SPIN=0;       // 平面图旋转角（弧度）
   var FLAT_R=78;         // 平面图半径（缩放）
   var FLAT_PITCH=1.0;    // 平面图俯仰（1=正俯视，0=侧面，-1=从下仰视）
+try{ var _fp=localStorage.getItem('helixPitch'); if(_fp!==null) FLAT_PITCH=parseFloat(_fp); }catch(e){}
   var R=170, LAYER=115;           // 螺旋半径 / 每层高度
 
   function midiHz(m){ return BASE_HZ * Math.pow(2,(m-69)/12); }
@@ -310,6 +311,7 @@
       yaw += dSpin;                    // 同步 3D（同一个物体，两个投影）
       FLAT_PITCH += (e.clientY-lastY)*(-0.005);
       FLAT_PITCH = Math.max(-1.0, Math.min(1.0, FLAT_PITCH));   // 负值 = 从下方仰视
+      try{ localStorage.setItem('helixPitch', String(FLAT_PITCH)); }catch(e){}
       lastX=e.clientX; lastY=e.clientY;
       draw(); drawFlat();
     });
@@ -344,6 +346,7 @@
   Array.prototype.forEach.call(document.querySelectorAll('[data-pitch]'), function(b){
     b.onclick=function(){
       FLAT_PITCH = parseFloat(b.getAttribute('data-pitch'));
+      try{ localStorage.setItem('helixPitch', String(FLAT_PITCH)); }catch(e){}
       drawFlat();
     };
   });
@@ -425,6 +428,7 @@
   document.getElementById('btnReset').onclick=function(){
     yaw=0.55; pitch=1.30; zoom=1.05; autoSpin=false;
     FLAT_SPIN=0; FLAT_R=78; FLAT_PITCH=1.0;
+    try{ localStorage.setItem('helixPitch','1'); }catch(e){}
     octaves=3;
     document.getElementById('btnSpin').className='';
     document.getElementById('btnOct').textContent='增高八度（+1）';
