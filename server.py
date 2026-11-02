@@ -55,7 +55,7 @@ def out_info():
     }
 
 
-def run_job(job_id, timbre, piece, tempo, ring, want_video, sections=None):
+def run_job(job_id, timbre, piece, tempo, ring, want_video, sections=None, gong=0):
     try:
         def prog(p):
             with LOCK:
@@ -67,7 +67,7 @@ def run_job(job_id, timbre, piece, tempo, ring, want_video, sections=None):
         elif piece == "quartet":
             path, dur, stages = R.render_quartet(tempo, ring, on_progress=prog)
         else:
-            path, dur = R.render_piece(timbre, piece, tempo, ring, on_progress=prog)
+            path, dur = R.render_piece(timbre, piece, tempo, ring, on_progress=prog, gong=gong)
 
         result = {
             "status": "done",
@@ -348,10 +348,14 @@ class Handler(BaseHTTPRequestHandler):
             ring = float(body.get("ring", 2.0))
             tempo = max(0.5, min(2.0, tempo))
             ring = max(0.5, min(6.0, ring))
+            try:
+                gong = max(-11, min(11, int(body.get("gong", 0) or 0)))
+            except (TypeError, ValueError):
+                gong = 0
             jid = uuid.uuid4().hex[:12]
             with LOCK:
                 JOBS[jid] = {"status": "running", "progress": 0}
-            threading.Thread(target=run_job, args=(jid, timbre, piece, tempo, ring, want_video, sections), daemon=True).start()
+            threading.Thread(target=run_job, args=(jid, timbre, piece, tempo, ring, want_video, sections, gong), daemon=True).start()
             return self._json({"job": jid})
 
         if p == "/api/upload":
