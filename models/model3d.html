@@ -57,7 +57,7 @@
 </div>
 <div id="stage">
   <canvas id="cv"></canvas>
-  <div id="flatBox" style="position:absolute;right:20px;top:60px;display:none;background:rgba(247,242,235,.96);border:1px solid #e6dccb;border-radius:8px;padding:8px"><div style="font-size:10.5px;color:#7096D1;text-align:center;margin-bottom:2px">平面（只看音级）· 俯仰 <span id="pitchVal" style="font-family:Consolas,monospace;color:#334EAC">1.00</span> · 转角 <span id="spinVal" style="font-family:Consolas,monospace;color:#334EAC">0°</span></div><div style="display:flex;gap:4px;justify-content:center;margin-bottom:4px"><button data-pitch="1" style="font-size:10px;padding:1px 6px;border:1px solid #d8cfc0;border-radius:3px;background:#fff;color:#334EAC;cursor:pointer">俯视</button><button data-pitch="0.35" style="font-size:10px;padding:1px 6px;border:1px solid #d8cfc0;border-radius:3px;background:#fff;color:#334EAC;cursor:pointer">斜视</button><button data-pitch="-0.6" style="font-size:10px;padding:1px 6px;border:1px solid #d8cfc0;border-radius:3px;background:#fff;color:#334EAC;cursor:pointer">仰视</button><button id="spinL" style="font-size:10px;padding:1px 6px;border:1px solid #d8cfc0;border-radius:3px;background:#fff;color:#334EAC;cursor:pointer">↺</button><button id="spinR" style="font-size:10px;padding:1px 6px;border:1px solid #d8cfc0;border-radius:3px;background:#fff;color:#334EAC;cursor:pointer">↻</button></div><div id="flat" style="width:220px;height:220px"></div></div>
+  <div id="flatBox" style="position:absolute;right:20px;top:60px;display:none;background:rgba(247,242,235,.96);border:1px solid #e6dccb;border-radius:8px;padding:8px"><div style="font-size:10.5px;color:#7096D1;text-align:center;margin-bottom:2px">平面（只看音级）· 俯仰 <span id="pitchVal" style="font-family:Consolas,monospace;color:#334EAC">1.00</span> · 转角 <span id="spinVal" style="font-family:Consolas,monospace;color:#334EAC">0°</span></div><div style="display:flex;gap:4px;justify-content:center;flex-wrap:wrap;margin-bottom:4px"><button data-pitch="1" style="font-size:10px;padding:1px 6px;border:1px solid #d8cfc0;border-radius:3px;background:#fff;color:#334EAC;cursor:pointer">俯视</button><button data-pitch="0.35" style="font-size:10px;padding:1px 6px;border:1px solid #d8cfc0;border-radius:3px;background:#fff;color:#334EAC;cursor:pointer">斜视</button><button data-pitch="-0.6" style="font-size:10px;padding:1px 6px;border:1px solid #d8cfc0;border-radius:3px;background:#fff;color:#334EAC;cursor:pointer">仰视</button><button id="spinL" style="font-size:10px;padding:1px 6px;border:1px solid #d8cfc0;border-radius:3px;background:#fff;color:#334EAC;cursor:pointer">↺</button><button id="spinR" style="font-size:10px;padding:1px 6px;border:1px solid #d8cfc0;border-radius:3px;background:#fff;color:#334EAC;cursor:pointer">↻</button><button id="stepSel" style="font-size:10px;padding:1px 6px;border:1px solid #d8cfc0;border-radius:3px;background:#fff;color:#334EAC;cursor:pointer">72°</button><button id="followBtn" style="font-size:10px;padding:1px 6px;border:1px solid #7096D1;border-radius:3px;background:#334EAC;color:#fff;cursor:pointer">跟随</button></div><div id="flat" style="width:240px;height:220px"></div></div>
 <div class="readout" id="ro">拖拽旋转 · 滚轮缩放 · 点圆点试听（若画面空白，地址后加 #img）</div>
   <div class="hint">五音角度：徵 30° / 羽 60° / 宫 150° / 商 210° / 角 330°（C = 0°）<br>螺旋上升一层 = 一个八度；五音每层重复一次，这就是「五声」的周期结构。</div>
 </div>
@@ -91,6 +91,7 @@
   var FLAT_SPIN=0;       // 平面图旋转角（弧度）
   var FLAT_R=78;         // 平面图半径（缩放）
   var FLAT_PITCH=1.0;    // 平面图俯仰（1=正俯视，0=侧面，-1=从下仰视）
+  var FLAT_FOLLOW=true;  // true=跟随 3D 主图的俯仰；false=手动固定
 try{ var _fp=localStorage.getItem('helixPitch'); if(_fp!==null) FLAT_PITCH=parseFloat(_fp); }catch(e){}
   var R=170, LAYER=115;           // 螺旋半径 / 每层高度
 
@@ -232,7 +233,12 @@ try{ var _fp=localStorage.getItem('helixPitch'); if(_fp!==null) FLAT_PITCH=parse
   function drawFlat(){
     var box=document.getElementById('flat');
     if(!box) return;
-    var W2=220, H2=220, cx2=W2/2, cy2=H2/2, R2=FLAT_R;
+    // 跟随模式：用 3D 主图的 pitch 换算（3D: 0=侧视、π/2=俯视；2D: 1=俯视、-1=仰视）
+    var effPitch = FLAT_PITCH;
+    if(FLAT_FOLLOW){
+      effPitch = Math.max(-1, Math.min(1, pitch/(Math.PI/2)));
+    }
+    var W2=240, H2=220, cx2=W2/2, cy2=H2/2, R2=FLAT_R;
     var SHENG=['C#','F#','G#','D#','A#'];     // 徵 宫 商 羽 角（相生序）
     // ⚠️ 角度必须用真实音级（半音数×30°），不能 72° 均分：
     // 否则 2D 画的是规则五角星，3D 螺旋用真实角度，俯视对不上。
@@ -241,7 +247,7 @@ try{ var _fp=localStorage.getItem('helixPitch'); if(_fp!==null) FLAT_PITCH=parse
     SHENG.forEach(function(name){
       var ang=SEMIS[name]/12*Math.PI*2 - Math.PI/2 + FLAT_SPIN;
       P.push({x:cx2+R2*Math.cos(ang),
-              y:cy2+R2*Math.sin(ang)*FLAT_PITCH,
+              y:cy2+R2*Math.sin(ang)*effPitch,
               f:1, name:name});
     });
     var s='';
@@ -270,7 +276,7 @@ try{ var _fp=localStorage.getItem('helixPitch'); if(_fp!==null) FLAT_PITCH=parse
     });
     box.innerHTML = '<svg width="'+W2+'" height="'+H2+'" viewBox="0 0 '+W2+' '+H2+'">'+s+'</svg>';
     var pv=document.getElementById('pitchVal');
-    if(pv) pv.textContent = FLAT_PITCH.toFixed(2);
+    if(pv){ pv.textContent = effPitch.toFixed(2) + (FLAT_FOLLOW?' · 跟随':' · 手动'); pv.style.color = FLAT_FOLLOW?'#7096D1':'#A85C32'; }
     var sv=document.getElementById('spinVal');
     if(sv){
       // 显示累计度数（不归一化），这样能看出转了几圈
@@ -309,6 +315,7 @@ try{ var _fp=localStorage.getItem('helixPitch'); if(_fp!==null) FLAT_PITCH=parse
       var dSpin = (e.clientX-lastX)*0.01;
       FLAT_SPIN += dSpin;
       yaw -= dSpin;                    // 同步 3D（方向与平面图一致）
+      FLAT_FOLLOW = false;                     // 手动拖俯仰即切手动
       FLAT_PITCH += (e.clientY-lastY)*0.005;   // 向下拖 = 更俯视（与 3D 一致）
       FLAT_PITCH = Math.max(-1.0, Math.min(1.0, FLAT_PITCH));   // 负值 = 从下方仰视
       try{ localStorage.setItem('helixPitch', String(FLAT_PITCH)); }catch(e){}
@@ -321,6 +328,20 @@ try{ var _fp=localStorage.getItem('helixPitch'); if(_fp!==null) FLAT_PITCH=parse
       FLAT_R = Math.max(40, Math.min(100, FLAT_R));
       drawFlat();
     },{passive:false});
+  })();
+
+  // 俯仰跟随开关
+  (function(){
+    var fb=document.getElementById('followBtn');
+    if(!fb) return;
+    fb.onclick=function(){
+      FLAT_FOLLOW=!FLAT_FOLLOW;
+      fb.textContent = FLAT_FOLLOW?'跟随':'手动';
+      fb.style.background = FLAT_FOLLOW?'#334EAC':'#fff';
+      fb.style.color = FLAT_FOLLOW?'#fff':'#334EAC';
+      fb.style.borderColor = FLAT_FOLLOW?'#7096D1':'#d8cfc0';
+      drawFlat();
+    };
   })();
 
   // 旋转步进（72° = 五音均分，正好跳到下一个音的方位）
@@ -345,6 +366,7 @@ try{ var _fp=localStorage.getItem('helixPitch'); if(_fp!==null) FLAT_PITCH=parse
   // 俯仰快捷档位
   Array.prototype.forEach.call(document.querySelectorAll('[data-pitch]'), function(b){
     b.onclick=function(){
+      FLAT_FOLLOW = false;                       // 选档位即切手动
       FLAT_PITCH = parseFloat(b.getAttribute('data-pitch'));
       try{ localStorage.setItem('helixPitch', String(FLAT_PITCH)); }catch(e){}
       drawFlat();
