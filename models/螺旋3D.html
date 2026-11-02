@@ -57,7 +57,7 @@
 </div>
 <div id="stage">
   <canvas id="cv"></canvas>
-  <div id="flatBox" style="position:absolute;right:20px;top:60px;display:none;background:rgba(247,242,235,.96);border:1px solid #e6dccb;border-radius:8px;padding:8px"><div style="font-size:10.5px;color:#7096D1;text-align:center;margin-bottom:2px">平面（只看音级）· 俯仰 <span id="pitchVal" style="font-family:Consolas,monospace;color:#334EAC">1.00</span> · 转角 <span id="spinVal" style="font-family:Consolas,monospace;color:#334EAC">0°</span></div><div style="display:flex;gap:4px;justify-content:center;margin-bottom:4px"><button data-pitch="1" style="font-size:10px;padding:1px 6px;border:1px solid #d8cfc0;border-radius:3px;background:#fff;color:#334EAC;cursor:pointer">俯视</button><button data-pitch="0.35" style="font-size:10px;padding:1px 6px;border:1px solid #d8cfc0;border-radius:3px;background:#fff;color:#334EAC;cursor:pointer">斜视</button><button data-pitch="-0.6" style="font-size:10px;padding:1px 6px;border:1px solid #d8cfc0;border-radius:3px;background:#fff;color:#334EAC;cursor:pointer">仰视</button></div><div id="flat" style="width:220px;height:220px"></div></div>
+  <div id="flatBox" style="position:absolute;right:20px;top:60px;display:none;background:rgba(247,242,235,.96);border:1px solid #e6dccb;border-radius:8px;padding:8px"><div style="font-size:10.5px;color:#7096D1;text-align:center;margin-bottom:2px">平面（只看音级）· 俯仰 <span id="pitchVal" style="font-family:Consolas,monospace;color:#334EAC">1.00</span> · 转角 <span id="spinVal" style="font-family:Consolas,monospace;color:#334EAC">0°</span></div><div style="display:flex;gap:4px;justify-content:center;margin-bottom:4px"><button data-pitch="1" style="font-size:10px;padding:1px 6px;border:1px solid #d8cfc0;border-radius:3px;background:#fff;color:#334EAC;cursor:pointer">俯视</button><button data-pitch="0.35" style="font-size:10px;padding:1px 6px;border:1px solid #d8cfc0;border-radius:3px;background:#fff;color:#334EAC;cursor:pointer">斜视</button><button data-pitch="-0.6" style="font-size:10px;padding:1px 6px;border:1px solid #d8cfc0;border-radius:3px;background:#fff;color:#334EAC;cursor:pointer">仰视</button><button id="spinL" style="font-size:10px;padding:1px 6px;border:1px solid #d8cfc0;border-radius:3px;background:#fff;color:#334EAC;cursor:pointer">↺</button><button id="spinR" style="font-size:10px;padding:1px 6px;border:1px solid #d8cfc0;border-radius:3px;background:#fff;color:#334EAC;cursor:pointer">↻</button></div><div id="flat" style="width:220px;height:220px"></div></div>
 <div class="readout" id="ro">拖拽旋转 · 滚轮缩放 · 点圆点试听（若画面空白，地址后加 #img）</div>
   <div class="hint">五音角度：徵 30° / 羽 60° / 宫 150° / 商 210° / 角 330°（C = 0°）<br>螺旋上升一层 = 一个八度；五音每层重复一次，这就是「五声」的周期结构。</div>
 </div>
@@ -272,7 +272,8 @@
     if(pv) pv.textContent = FLAT_PITCH.toFixed(2);
     var sv=document.getElementById('spinVal');
     if(sv){
-      var deg=((FLAT_SPIN*180/Math.PI)%360+360)%360;
+      // 显示累计度数（不归一化），这样能看出转了几圈
+      var deg=FLAT_SPIN*180/Math.PI;
       sv.textContent = deg.toFixed(0)+'°';
     }
     // 档位高亮：离哪个档最近就亮哪个
@@ -314,6 +315,14 @@
       FLAT_R = Math.max(40, Math.min(100, FLAT_R));
       drawFlat();
     },{passive:false});
+  })();
+
+  // 旋转步进（72° = 五音均分，正好跳到下一个音的方位）
+  (function(){
+    var STEP = Math.PI*2/5;
+    var L=document.getElementById('spinL'), Rr=document.getElementById('spinR');
+    if(L) L.onclick=function(){ FLAT_SPIN-=STEP; drawFlat(); };
+    if(Rr) Rr.onclick=function(){ FLAT_SPIN+=STEP; drawFlat(); };
   })();
 
   // 俯仰快捷档位
