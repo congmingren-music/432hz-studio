@@ -87,6 +87,7 @@
   var SHOW_SHENG=true;   // 五音相生螺旋线
   var SHOW_KE=true;      // 五音相克螺旋线
   var SHOW_FLAT=false;   // 平面对照
+  var FLAT_SPIN=0;       // 平面图旋转角（弧度）
   var R=170, LAYER=115;           // 螺旋半径 / 每层高度
 
   function midiHz(m){ return BASE_HZ * Math.pow(2,(m-69)/12); }
@@ -231,15 +232,17 @@
     var SHENG=['C#','F#','G#','D#','A#'];     // 徵 宫 商 羽 角（相生序）
     var P=[];
     SHENG.forEach(function(name,i2){
-      var ang=(i2/5)*Math.PI*2 - Math.PI/2;
+      var ang=(i2/5)*Math.PI*2 - Math.PI/2 + FLAT_SPIN;
       P.push({x:cx2+R2*Math.cos(ang), y:cy2+R2*Math.sin(ang), name:name});
     });
     var s='';
     // 相生（五边形边）
-    var d='';
-    P.forEach(function(pt,i3){ d += (i3?'L':'M') + pt.x.toFixed(1) + ',' + pt.y.toFixed(1); });
-    d += 'Z';
-    s += '<path d="'+d+'" fill="none" stroke="rgba(168,92,50,.8)" stroke-width="1.8"/>';
+    if(SHOW_SHENG){
+      var d='';
+      P.forEach(function(pt,i3){ d += (i3?'L':'M') + pt.x.toFixed(1) + ',' + pt.y.toFixed(1); });
+      d += 'Z';
+      s += '<path d="'+d+'" fill="none" stroke="rgba(168,92,50,.8)" stroke-width="1.8"/>';
+    }
     // 相克（对角线，虚线）
     if(SHOW_KE){
       for(var k=0;k<5;k++){
@@ -257,6 +260,24 @@
     });
     box.innerHTML = '<svg width="'+W2+'" height="'+H2+'" viewBox="0 0 '+W2+' '+H2+'">'+s+'</svg>';
   }
+
+  // 平面小图拖拽旋转
+  (function(){
+    var fb=document.getElementById('flatBox');
+    if(!fb) return;
+    var dragging=false, lastX=0;
+    fb.addEventListener('pointerdown',function(e){
+      if(e.target.tagName==='CANVAS'||e.target.tagName==='svg'||e.target.closest&&e.target.closest('svg')){
+        dragging=true; lastX=e.clientX; fb.setPointerCapture(e.pointerId);
+      }
+    });
+    fb.addEventListener('pointerup',function(){ dragging=false; });
+    fb.addEventListener('pointermove',function(e){
+      if(!dragging) return;
+      FLAT_SPIN += (e.clientX-lastX)*0.01;
+      lastX=e.clientX; drawFlat();
+    });
+  })();
 
   // ── 交互 ──
   var drag=false, lx=0, ly=0;
@@ -318,11 +339,11 @@
   };
   document.getElementById('btnSheng').onclick=function(){
     SHOW_SHENG=!SHOW_SHENG; this.className=SHOW_SHENG?'on':'';
-    draw();
+    draw(); drawFlat();
   };
   document.getElementById('btnKe').onclick=function(){
     SHOW_KE=!SHOW_KE; this.className=SHOW_KE?'on':'';
-    draw();
+    draw(); drawFlat();
   };
   document.getElementById('btnFlat').onclick=function(){
     SHOW_FLAT=!SHOW_FLAT; this.className=SHOW_FLAT?'on':'';
