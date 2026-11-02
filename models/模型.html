@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>432Hz 五音八音数学模型</title>
+<style>
+  :root{--paper:#F7F2EB;--ink:#081F5C;--blue:#334EAC;--muted:#7096D1;--warm:#A85C32}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--paper);color:var(--ink);
+       font-family:-apple-system,'Segoe UI','Microsoft YaHei',sans-serif}
+  header{padding:22px 26px 4px}
+  h1{margin:0 0 6px;font-size:19px;font-weight:800}
+  .sub{font-size:11.5px;color:var(--muted);line-height:1.7}
+  .bar{display:flex;gap:9px;align-items:center;flex-wrap:wrap;padding:12px 26px 0}
+  button{background:#fff;border:1px solid #d8cfc0;color:var(--ink);border-radius:6px;
+          padding:6px 13px;font-size:12px;cursor:pointer}
+  button:hover{border-color:var(--blue);color:var(--blue)}
+  button.on{background:var(--blue);color:#fff;border-color:var(--blue)}
+  .wrap{display:flex;gap:16px;padding:14px 26px 30px;flex-wrap:wrap;align-items:flex-start}
+  .card{background:rgba(255,255,255,.6);border:1px solid #e6dccb;border-radius:9px;
+        padding:10px;flex:0 1 auto}
+  .nine{display:grid;grid-template-columns:repeat(3,62px);grid-template-rows:repeat(3,62px)}
+  .cell{border:1px solid var(--blue);display:flex;flex-direction:column;
+         align-items:center;justify-content:center;background:var(--paper);transition:.5s ease}
+  .cell.mid{background:#efe6d8;border-color:var(--warm)}
+  .cell b{font-size:18px;font-family:Consolas,monospace;line-height:1}
+  .cell span{font-size:9px;color:var(--warm);margin-top:3px}
+  .hint{font-size:11px;color:var(--muted);margin-top:9px;line-height:1.6;max-width:290px}
+  .readout{margin:12px 26px 0;font-size:12px;color:var(--blue);min-height:20px;
+           font-family:Consolas,monospace}
+  footer{padding:0 26px 26px;font-size:10px;color:var(--muted)}
+  /* 相生：沿边流动的光点 */
+  .sheng{stroke-dasharray:5 9;animation:flow 2.6s linear infinite}
+  @keyframes flow{to{stroke-dashoffset:-28}}
+  /* 相克：脉冲 */
+  .ke{animation:pulse 3.2s ease-in-out infinite}
+  @keyframes pulse{0%,100%{opacity:.35}50%{opacity:.95}}
+  .node circle{transition:.22s}
+  .node:hover circle{r:36}
+  .playing circle{fill:#e8eefc;stroke-width:3.2}
+</style>
+</head>
+<body>
+<header>
+  <h1>432 Hz 体系 · 五音五行与八音八卦的可视化数学模型</h1>
+  <div class="sub">频率取自企业标准 A.1 / A.2（A4 = 432.00 Hz）。半径用频率的对数映射，对应听感音程，不是线性距离。<br>点击顶点会播放该音的真实采样（古筝源，按 432 Hz 基准渲染）。</div>
+</header>
+<div class="bar">
+  <button id="modeWuyin" class="on">五音 · 五角星</button>
+  <button id="modeBayin">八音 · 八边形 + 九宫</button>
+  <button id="seqWuyin">顺序播放五音</button>
+  <button id="rotWuyin">五音旋宫：F#宫 → C宫</button>
+  <button id="seqBayin" style="display:none">顺序播放八音</button>
+  <button id="rotBtn">九宫旋宫：F#宫 → C宫</button>
+  <span id="rotLabel" style="font-size:11.5px;color:var(--muted)">当前：F# 宫（企业标准）</span>
+</div>
+<div class="readout" id="readout">就绪 · 点顶点试听</div>
+<div class="wrap">
+  <div class="card" id="wuyinBox"><svg id="wuyinSvg" viewBox="0 0 720 640" width="720" height="640" style="display:block;width:100%;max-width:720px;height:auto"></svg></div>
+  <div class="card" id="bayinBox" style="display:none"><svg id="bayinSvg" viewBox="0 0 800 620" width="800" height="620" style="display:block;width:100%;max-width:800px;height:auto"></svg>
+    <div class="hint">洛书九宫：戴九履一，左三右七，二四为肩，六八为足。旋宫时九个方位整体旋转，<b>位置变、相对关系不变</b>。</div>
+  </div>
+  <div class="card" id="nineBox" style="display:none">
+    <div style="font-size:13px;font-weight:700;margin-bottom:8px">洛书九宫</div>
+    <div class="nine" id="nine"></div>
+    <div class="hint">后天八卦配九宫：坎一、坤二、震三、巽四、中五、乾六、兑七、艮八、离九。</div>
+  </div>
+</div>
+<footer>企业标准《企业定义频率系列》· 仅用于产品编码与文化主题设计，不构成生理、医疗或生物学效应声明。</footer>
+<script>
+(function(){
+  var PAPER='#F7F2EB', INK='#081F5C', BLUE='#334EAC', MUTED='#7096D1', WARM='#A85C32';
+  var WX={'火':'#A85C32','土':'#B08A4A','金':'#7A8B99','水':'#334EAC','木':'#4F7A5A'};
+
+  // 五音：按五行相生顺序（火→土→金→水→木）
+  var WUYIN=[
+    {n:'徵',e:'火',f:272.14,note:'C#4',file:'wuyin_Cs4.wav'},
+    {n:'宫',e:'土',f:363.27,note:'F#4',file:'wuyin_Fs4.wav'},
+    {n:'商',e:'金',f:407.75,note:'G#4',file:'wuyin_Gs4.wav'},
+    {n:'羽',e:'水',f:305.47,note:'D#4',file:'wuyin_Ds4.wav'},
+    {n:'角',e:'木',f:457.69,note:'A#4',file:'wuyin_As4.wav'}
+  ];
+  var BAYIN=[
+    {n:'C4',f:256.87,g:'乾',file:'bayin_C4.wav'},
+    {n:'D4',f:288.33,g:'兑',file:'bayin_D4.wav'},
+    {n:'E4',f:323.63,g:'离',file:'bayin_E4.wav'},
+    {n:'F4',f:342.88,g:'震',file:'bayin_F4.wav'},
+    {n:'G4',f:384.87,g:'巽',file:'bayin_G4.wav'},
+    {n:'A4',f:432.00,g:'坎',file:'bayin_A4.wav'},
+    {n:'B4',f:484.90,g:'艮',file:'bayin_B4.wav'},
+    {n:'C5',f:513.74,g:'坤',file:'bayin_C5.wav'}
+  ];
+  var LUOSHU=[[4,9,2],[3,5,7],[8,1,6]];
+  var NUM2GUA={1:'坎',2:'坤',3:'震',4:'巽',5:'中',6:'乾',7:'兑',8:'艮',9:'离'};
+
+  function lr(f,lo,hi,a,b){var t=(Math.log2(f)-Math.log2(lo))/(Math.log2(hi)-Math.log2(lo));return a+t*(b-a)}
+  function el(tag,attrs,text){
+    var e=document.createElementNS('http://www.w3.org/2000/svg',tag);
+    for(var k in attrs) e.setAttribute(k,attrs[k]);
+    if(text!=null) e.textContent=text;
+    return e;
+  }
+
+  var ac=null;
+  var HALF = 1;          // 旋宫半音数（0=企业标准 F#宫，-6=C宫）
+  function play(file,f,name,extraSemis){
+    var ro=document.getElementById('readout');
+    try{
+      var a=new Audio('audio/'+file);
+      a.volume=.85;
+      var semis = (extraSemis||0) + HALF;
+      if(semis) a.playbackRate = Math.pow(2, semis/12);
+      var shown = f * Math.pow(2, semis/12);
+      var p=a.play();
+      if(p&&p.catch) p.catch(function(){ fallback(shown,name); });
+      ro.textContent=name+'  '+shown.toFixed(2)+' Hz'+(semis?('（旋宫 '+(semis>0?'+':'')+semis+' 半音）'):'');
+    }catch(e){ fallback(f,name); }
+  }
+  function fallback(f,name){
+    try{
+      ac=ac||new (window.AudioContext||window.webkitAudioContext)();
+      if(ac.state==='suspended') ac.resume();
+      var o=ac.createOscillator(),g=ac.createGain();
+      o.type='sine';o.frequency.value=f;
+      g.gain.setValueAtTime(.0001,ac.currentTime);
+      g.gain.exponentialRampToValueAtTime(.2,ac.currentTime+.02);
+      g.gain.exponentialRampToValueAtTime(.0001,ac.currentTime+1.5);
+      o.connect(g);g.connect(ac.destination);o.start();o.stop(ac.currentTime+1.6);
+      document.getElementById('readout').textContent=name+'  '+f.toFixed(2)+' Hz（正弦兜底）';
+    }catch(e2){ document.getElementById('readout').textContent='浏览器不支持播放'; }
+  }
+
+  // ── 五角星 ──
+  function drawWuyin(){
+    var svg=document.getElementById('wuyinSvg');
+    while(svg.firstChild) svg.removeChild(svg.firstChild);
+    var W=720,H=640,cx=360,cy=330;
+    svg.appendChild(el('rect',{width:W,height:H,fill:PAPER}));
+    svg.appendChild(el('text',{x:W/2,y:34,'text-anchor':'middle','font-size':20,'font-weight':700,fill:INK},'五音 · 五行 · 五角星'));
+    svg.appendChild(el('text',{x:W/2,y:54,'text-anchor':'middle','font-size':11,fill:MUTED},'半径 = 频率对数 ｜ 边 = 相生（流动）｜ 对角线 = 相克（脉冲）｜ 点顶点试听'));
+    var lo=272.14,hi=457.69,pts=[];
+    WUYIN.forEach(function(w,i){
+      var ang=Math.PI/180*(-90+i*72), r=lr(w.f,lo,hi,150,250);
+      pts.push({x:cx+r*Math.cos(ang),y:cy+r*Math.sin(ang),ang:ang,r:r,d:w});
+    });
+    // 五边形（相生）
+    var d='';
+    pts.forEach(function(p,i){ d+=(i?'L':'M')+p.x.toFixed(1)+','+p.y.toFixed(1); });
+    d+='Z';
+    var sheng=el('path',{d:d,fill:'none',stroke:BLUE,'stroke-width':2.4});
+    sheng.setAttribute('class','sheng');
+    svg.appendChild(sheng);
+    // 相生边上的频率比
+    pts.forEach(function(p,i){
+      var q=pts[(i+1)%5];
+      var mx=(p.x+q.x)/2,my=(p.y+q.y)/2;
+      var ratio=Math.max(p.d.f,q.d.f)/Math.min(p.d.f,q.d.f);
+      svg.appendChild(el('text',{x:mx,y:my,'text-anchor':'middle','font-size':9,fill:BLUE,opacity:.75},'×'+ratio.toFixed(4)));
+    });
+    // 相克（对角线）
+    pts.forEach(function(p,i){
+      var q=pts[(i+2)%5];
+      var l=el('line',{x1:p.x,y1:p.y,x2:q.x,y2:q.y,stroke:WARM,'stroke-width':1.5,'stroke-dasharray':'6 5'});
+      l.setAttribute('class','ke');
+      svg.appendChild(l);
+    });
+    // 中心
+    svg.appendChild(el('circle',{cx:cx,cy:cy,r:44,fill:'none',stroke:MUTED,'stroke-width':1,'stroke-dasharray':'3 4'}));
+    svg.appendChild(el('text',{x:cx,y:cy-3,'text-anchor':'middle','font-size':12,fill:INK},'相生环'));
+    svg.appendChild(el('text',{x:cx,y:cy+14,'text-anchor':'middle','font-size':10,fill:MUTED},'火 土 金 水 木'));
+    // 顶点
+    pts.forEach(function(p){
+      var col=WX[p.d.e]||INK;
+      var g=el('g',{});
+      g.setAttribute('class','node');
+      g.style.cursor='pointer';
+      g.appendChild(el('circle',{cx:p.x,cy:p.y,r:30,fill:PAPER,stroke:col,'stroke-width':2.4}));
+      g.appendChild(el('text',{x:p.x,y:p.y+2,'text-anchor':'middle','font-size':18,'font-weight':700,fill:INK},p.d.n));
+      g.appendChild(el('text',{x:p.x,y:p.y+17,'text-anchor':'middle','font-size':10,fill:col},p.d.e));
+      var lx=cx+(p.r+48)*Math.cos(p.ang), ly=cy+(p.r+48)*Math.sin(p.ang);
+      var anch='middle';
+      if(Math.cos(p.ang)>.35) anch='start'; else if(Math.cos(p.ang)<-.35) anch='end';
+      g.appendChild(el('text',{x:lx,y:ly-3,'text-anchor':anch,'font-size':10,fill:BLUE,'font-family':'monospace'},p.d.note+' '+p.d.f.toFixed(2)+'Hz'));
+      g.addEventListener('click',function(){
+        play(p.d.file,p.d.f,p.d.n);
+        g.classList.add('playing');
+        setTimeout(function(){g.classList.remove('playing')},400);
+      });
+      svg.appendChild(g);
+    });
+    svg.appendChild(el('text',{x:16,y:H-34,'font-size':9.5,fill:WARM},'相克：徵克商 · 商克角 · 角克宫 · 宫克羽 · 羽克徵'));
+    svg.appendChild(el('text',{x:16,y:H-18,'font-size':9,fill:MUTED},'企业标准 A.2 · 432 Hz 体系 · 仅用于产品编码与文化主题设计'));
+  }
+
+  // ── 八边形 ──
+  function drawBayin(){
+    var svg=document.getElementById('bayinSvg');
+    while(svg.firstChild) svg.removeChild(svg.firstChild);
+    var W=800,H=620,cx=300,cy=320;
+    svg.appendChild(el('rect',{width:W,height:H,fill:PAPER}));
+    svg.appendChild(el('text',{x:20,y:34,'font-size':19,'font-weight':700,fill:INK},'八音 · 八卦 · 八边形'));
+    svg.appendChild(el('text',{x:20,y:54,'font-size':11,fill:MUTED},'半径 = 频率对数 ｜ 点顶点试听 ｜ 右侧九宫可旋宫'));
+    var lo=256.87,hi=513.74,pts=[];
+    BAYIN.forEach(function(b,i){
+      var ang=Math.PI/180*(-90+i*45), r=lr(b.f,lo,hi,110,190);
+      pts.push({x:cx+r*Math.cos(ang),y:cy+r*Math.sin(ang),ang:ang,r:r,d:b});
+    });
+    var d='';
+    pts.forEach(function(p,i){ d+=(i?'L':'M')+p.x.toFixed(1)+','+p.y.toFixed(1); });
+    d+='Z';
+    var poly=el('path',{d:d,fill:'none',stroke:BLUE,'stroke-width':2.2});
+    poly.setAttribute('class','sheng');
+    svg.appendChild(poly);
+    for(var i=0;i<4;i++){
+      var a=pts[i],b=pts[i+4];
+      svg.appendChild(el('line',{x1:a.x,y1:a.y,x2:b.x,y2:b.y,stroke:MUTED,'stroke-width':.8,'stroke-dasharray':'4 5',opacity:.65}));
+    }
+    pts.forEach(function(p){
+      var g=el('g',{});
+      g.setAttribute('class','node');
+      g.style.cursor='pointer';
+      g.appendChild(el('circle',{cx:p.x,cy:p.y,r:23,fill:PAPER,stroke:INK,'stroke-width':1.9}));
+      g.appendChild(el('text',{x:p.x,y:p.y+1,'text-anchor':'middle','font-size':10.5,'font-weight':700,fill:INK,'font-family':'monospace'},p.d.n));
+      g.appendChild(el('text',{x:p.x,y:p.y+13,'text-anchor':'middle','font-size':9,fill:WARM},p.d.g));
+      var lx=cx+(p.r+38)*Math.cos(p.ang), ly=cy+(p.r+38)*Math.sin(p.ang);
+      var anch='middle';
+      if(Math.cos(p.ang)>.35) anch='start'; else if(Math.cos(p.ang)<-.35) anch='end';
+      g.appendChild(el('text',{x:lx,y:ly,'text-anchor':anch,'font-size':9,fill:BLUE,'font-family':'monospace'},p.d.f.toFixed(2)));
+      g.addEventListener('click',function(){
+        play(p.d.file,p.d.f,p.d.n);
+        g.classList.add('playing');
+        setTimeout(function(){g.classList.remove('playing')},400);
+      });
+      svg.appendChild(g);
+    });
+    svg.appendChild(el('circle',{cx:cx,cy:cy,r:28,fill:'none',stroke:MUTED,'stroke-width':1,'stroke-dasharray':'3 4'}));
+    svg.appendChild(el('text',{x:cx,y:cy-2,'text-anchor':'middle','font-size':10,fill:INK},'八音'));
+    svg.appendChild(el('text',{x:cx,y:cy+11,'text-anchor':'middle','font-size':8.5,fill:MUTED},'大调音阶'));
+    svg.appendChild(el('text',{x:16,y:H-34,'font-size':9.5,fill:MUTED},'半音间隔 2 2 1 2 2 2 1 = 全全半全全全半'));
+    svg.appendChild(el('text',{x:16,y:H-18,'font-size':9,fill:MUTED},'企业标准 A.1 · A4 = 432.00 Hz 为基准'));
+  }
+
+  // ── 九宫 + 旋宫 ──
+  var rot=0;
+  function drawNine(){
+    var box=document.getElementById('nine');
+    box.innerHTML='';
+    for(var r=0;r<3;r++){
+      for(var c=0;c<3;c++){
+        var num=LUOSHU[r][c];
+        var shown = rot ? (num+5-1)%9+1 : num;   // 旋宫：整体移 5 位（F#宫→C宫）
+        var d=document.createElement('div');
+        d.className='cell'+(num===5?' mid':'');
+        d.innerHTML='<b>'+shown+'</b><span>'+NUM2GUA[shown]+'</span>';
+        box.appendChild(d);
+      }
+    }
+  }
+  // 顺序播放（间隔 0.95 秒）
+  function playSeq(list, sel){
+    var i=0;
+    (function step(){
+      if(i>=list.length) return;
+      var it=list[i++];
+      play(it.file, it.f, it.n || it.n, 0);
+      var g=document.querySelector(sel);
+      if(g){ g.classList.add('playing'); setTimeout(function(){g.classList.remove('playing');},600); }
+      setTimeout(step, 950);
+    })();
+  }
+  document.getElementById('seqWuyin').onclick=function(){
+    var nodes=document.querySelectorAll('#wuyinSvg .node');
+    var list=WUYIN.map(function(w,i){ return {file:w.file,f:w.f,n:w.n,idx:i}; });
+    var i=0;
+    (function step(){
+      if(i>=list.length) return;
+      var it=list[i];
+      play(it.file,it.f,it.n,0);
+      var g=nodes[i]; if(g){ g.classList.add('playing'); setTimeout(function(){g.classList.remove('playing');},600); }
+      i++; setTimeout(step, 950);
+    })();
+  };
+  document.getElementById('seqBayin').onclick=function(){
+    var nodes=document.querySelectorAll('#bayinSvg .node');
+    var i=0;
+    (function step(){
+      if(i>=BAYIN.length) return;
+      var it=BAYIN[i];
+      play(it.file,it.f,it.n,0);
+      var g=nodes[i]; if(g){ g.classList.add('playing'); setTimeout(function(){g.classList.remove('playing');},600); }
+      i++; setTimeout(step, 950);
+    })();
+  };
+  document.getElementById('rotWuyin').onclick=function(){
+    HALF = HALF ? 0 : -6;      // F#宫(0) <-> C宫(-6 半音)
+    var on = !!HALF;
+    this.textContent = on ? '复原：回 F#宫（企业标准）' : '五音旋宫：F#宫 → C宫';
+    document.getElementById('readout').textContent = on
+      ? '五音已旋宫到 C 宫：五个音整体降 6 个半音，相对关系不变'
+      : '五音复原到 F# 宫（企业标准）';
+  };
+
+  document.getElementById('rotBtn').onclick=function(){
+    rot=rot?0:1;
+    drawNine();
+    document.getElementById('rotLabel').textContent = rot ? '当前：C 宫（旋宫后）' : '当前：F# 宫（企业标准）';
+    this.textContent = rot ? '复原：回 F#宫' : '旋宫：F#宫 → C宫';
+  };
+
+  function show(which){
+    var isW = which==='w';
+    document.getElementById('wuyinBox').style.display = isW?'':'none';
+    document.getElementById('bayinBox').style.display = isW?'none':'';
+    document.getElementById('nineBox').style.display = isW?'none':'';
+    document.getElementById('modeWuyin').className = isW?'on':'';
+    document.getElementById('modeBayin').className = isW?'':'on';
+    document.getElementById('seqWuyin').style.display = isW?'':'none';
+    document.getElementById('rotWuyin').style.display = isW?'':'none';
+    document.getElementById('seqBayin').style.display = isW?'none':'';
+    document.getElementById('rotBtn').style.display = isW?'none':'';
+    if(!isW) drawNine();
+  }
+  document.getElementById('modeWuyin').onclick=function(){ show('w'); };
+  document.getElementById('modeBayin').onclick=function(){ show('b'); };
+
+  drawWuyin();
+  drawBayin();
+  drawNine();
+})();
+</script>
+</body>
+</html>
