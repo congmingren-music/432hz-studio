@@ -31,7 +31,7 @@ FILES = [
     "make_voice.ps1",
 ]
 
-MSG = "五音八音交互模型：真实采样/动画/旋宫，接入工作室界面"
+MSG = "模型加十二宫位选择与播放间隔控制"
 
 
 def req(method, url, token, data=None):
