@@ -54,6 +54,7 @@
   <span style="font-size:11px;color:#7096D1">间隔</span>
   <input id="seqGap" type="range" min="0.4" max="2" step="0.1" value="0.95" style="width:90px">
   <span id="seqGapV" style="font-size:11px;color:#7096D1;font-family:monospace">0.95s</span>
+  <label style="font-size:11.5px;color:#081F5C;display:flex;align-items:center;gap:4px"><input type="checkbox" id="loopChk"> 循环</label>
   <button id="seqBayin" style="display:none">顺序播放八音</button>
   <button id="rotBtn">九宫旋宫：F#宫 → C宫</button>
   <span id="rotLabel" style="font-size:11.5px;color:var(--muted)">当前：F# 宫（企业标准）</span>
@@ -78,12 +79,15 @@
 
   // 五音：按五行相生顺序（火→土→金→水→木）
   var WUYIN=[
-    {n:'徵',e:'火',f:272.14,note:'C#4',file:'wuyin_Cs4.wav'},
-    {n:'宫',e:'土',f:363.27,note:'F#4',file:'wuyin_Fs4.wav'},
-    {n:'商',e:'金',f:407.75,note:'G#4',file:'wuyin_Gs4.wav'},
-    {n:'羽',e:'水',f:305.47,note:'D#4',file:'wuyin_Ds4.wav'},
-    {n:'角',e:'木',f:457.69,note:'A#4',file:'wuyin_As4.wav'}
+    {n:'徵',e:'火',f:272.14,note:'C#4',file:'wuyin_Cs4.wav',py:'zhi'},
+    {n:'宫',e:'土',f:363.27,note:'F#4',file:'wuyin_Fs4.wav',py:'gong'},
+    {n:'商',e:'金',f:407.75,note:'G#4',file:'wuyin_Gs4.wav',py:'shang'},
+    {n:'羽',e:'水',f:305.47,note:'D#4',file:'wuyin_Ds4.wav',py:'yu'},
+    {n:'角',e:'木',f:457.69,note:'A#4',file:'wuyin_As4.wav',py:'jue'}
   ];
+  // 十二宫位拼音（与预渲染文件名对应）
+  var GONG_PY=['Fs','G','Gs','A','As','B','C','Cs','D','Ds','E','F'];
+  var GONG_IDX=0;    // 当前宫位下标（0 = 企业标准 F#宫）
   var BAYIN=[
     {n:'C4',f:256.87,g:'乾',file:'bayin_C4.wav'},
     {n:'D4',f:288.33,g:'兑',file:'bayin_D4.wav'},
@@ -112,7 +116,7 @@
     try{
       var a=new Audio('audio/'+file);
       a.volume=.85;
-      var semis = (extraSemis||0) + HALF;
+      var semis = (extraSemis||0) + (file.indexOf('gong_')===0 ? 0 : HALF);
       if(semis) a.playbackRate = Math.pow(2, semis/12);
       var shown = f * Math.pow(2, semis/12);
       var p=a.play();
@@ -186,7 +190,8 @@
       if(Math.cos(p.ang)>.35) anch='start'; else if(Math.cos(p.ang)<-.35) anch='end';
       g.appendChild(el('text',{x:lx,y:ly-3,'text-anchor':anch,'font-size':10,fill:BLUE,'font-family':'monospace'},p.d.note+' '+p.d.f.toFixed(2)+'Hz'));
       g.addEventListener('click',function(){
-        play(p.d.file,p.d.f,p.d.n);
+        var f2=p.d.f*Math.pow(2,GONG_IDX/12);
+        play('gong_'+GONG_PY[GONG_IDX]+'_'+p.d.py+'.wav', f2, p.d.n, 0);
         g.classList.add('playing');
         setTimeout(function(){g.classList.remove('playing')},400);
       });
@@ -263,10 +268,11 @@
   // 顺序播放（间隔由 SEQ_GAP 控制，见下方滑块）
   document.getElementById('seqWuyin').onclick=function(){
     var nodes=document.querySelectorAll('#wuyinSvg .node');
-    var list=WUYIN.map(function(w,i){ return {file:w.file,f:w.f,n:w.n,idx:i}; });
+    var scale=Math.pow(2,GONG_IDX/12);
+    var list=WUYIN.map(function(w){ return {file:'gong_'+GONG_PY[GONG_IDX]+'_'+w.py+'.wav', f:w.f*scale, n:w.n}; });
     var i=0;
     (function step(){
-      if(i>=list.length) return;
+      if(i>=list.length){ if(LOOP){ i=0; setTimeout(step, SEQ_GAP*1000); } return; }
       var it=list[i];
       play(it.file,it.f,it.n,0);
       var g=nodes[i]; if(g){ g.classList.add('playing'); setTimeout(function(){g.classList.remove('playing');},600); }
@@ -277,7 +283,7 @@
     var nodes=document.querySelectorAll('#bayinSvg .node');
     var i=0;
     (function step(){
-      if(i>=BAYIN.length) return;
+      if(i>=BAYIN.length){ if(LOOP){ i=0; setTimeout(step, SEQ_GAP*1000); } return; }
       var it=BAYIN[i];
       play(it.file,it.f,it.n,0);
       var g=nodes[i]; if(g){ g.classList.add('playing'); setTimeout(function(){g.classList.remove('playing');},600); }
@@ -295,14 +301,19 @@
       sel.appendChild(o);
     });
     sel.onchange=function(){
-      HALF=+this.value;
+      var v=+this.value;
+      HALF = v>6 ? v-12 : v;          // 超过 6 半音走等价下行
+      GONG_IDX = (v+12)%12;
       var txt=this.options[this.selectedIndex].textContent.replace('宫位：','');
-      document.getElementById('readout').textContent=
-        '已旋宫到 '+txt+(HALF?('（整体 '+(HALF>0?'+':'')+HALF+' 半音，相对关系不变）'):'');
+      document.getElementById('readout').textContent =
+        '已旋宫到 '+txt+'（整体 '+(HALF>=0?'+':'')+HALF+' 半音，相对关系不变；用预渲染音频，不靠变速）';
+      drawWuyin();                     // 重绘频率标签
     };
   })();
   // 播放间隔
   var SEQ_GAP=0.95;
+  var LOOP=false;
+  document.getElementById('loopChk').onchange=function(){ LOOP=this.checked; };
   document.getElementById('seqGap').oninput=function(){
     SEQ_GAP=parseFloat(this.value);
     document.getElementById('seqGapV').textContent=SEQ_GAP.toFixed(2)+'s';
