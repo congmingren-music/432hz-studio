@@ -158,6 +158,7 @@ class Handler(BaseHTTPRequestHandler):
                 "beat": dict(R.BEAT),
                 "comb": dict(R.COMB),
                 "tail": dict(R.TAIL),
+                "tail_by": {k: dict(v) for k, v in R.TAIL_BY.items()},
                 "gain": {"output_db": R.OUTPUT_GAIN_DB, "by": dict(R.GAIN_BY)},
             })
 
@@ -221,8 +222,23 @@ class Handler(BaseHTTPRequestHandler):
                         R.TAIL[key] = int(tp[key])
                     except (TypeError, ValueError):
                         pass
+            # 按音源覆盖余音：body.tail_by = {"bell": {"high_keep": 7.0}, ...}
+            tb = body.get("tail_by") or {}
+            if isinstance(tb, dict):
+                for tid, patch in tb.items():
+                    if not isinstance(patch, dict):
+                        continue
+                    slot = R.TAIL_BY.setdefault(str(tid), {})
+                    for key in ("min_keep", "low_keep", "mid_keep", "high_keep", "tail_fade"):
+                        if key in patch:
+                            try:
+                                slot[key] = max(0.2, min(12.0, float(patch[key])))
+                            except (TypeError, ValueError):
+                                pass
             out.update({"beat": dict(R.BEAT), "comb": dict(R.COMB),
-                        "tail": dict(R.TAIL), "presets": R.STYLE_PRESETS})
+                        "tail": dict(R.TAIL),
+                        "tail_by": {k: dict(v) for k, v in R.TAIL_BY.items()},
+                        "presets": R.STYLE_PRESETS})
             return self._json(out)
 
         if p == "/api/estimate":
