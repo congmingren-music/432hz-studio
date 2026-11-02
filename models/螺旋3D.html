@@ -57,7 +57,7 @@
 </div>
 <div id="stage">
   <canvas id="cv"></canvas>
-  <div id="flatBox" style="position:absolute;right:20px;top:60px;display:none;background:rgba(247,242,235,.96);border:1px solid #e6dccb;border-radius:8px;padding:8px"><div style="font-size:11px;color:#7096D1;text-align:center;margin-bottom:4px">平面（只看音级）</div><div id="flat" style="width:220px;height:220px"></div></div>
+  <div id="flatBox" style="position:absolute;right:20px;top:60px;display:none;background:rgba(247,242,235,.96);border:1px solid #e6dccb;border-radius:8px;padding:8px"><div style="font-size:10.5px;color:#7096D1;text-align:center;margin-bottom:4px">平面（只看音级）· 上下拖改俯仰</div><div id="flat" style="width:220px;height:220px"></div></div>
 <div class="readout" id="ro">拖拽旋转 · 滚轮缩放 · 点圆点试听（若画面空白，地址后加 #img）</div>
   <div class="hint">五音角度：徵 30° / 羽 60° / 宫 150° / 商 210° / 角 330°（C = 0°）<br>螺旋上升一层 = 一个八度；五音每层重复一次，这就是「五声」的周期结构。</div>
 </div>
@@ -90,7 +90,7 @@
   var SHOW_FLAT=false;   // 平面对照
   var FLAT_SPIN=0;       // 平面图旋转角（弧度）
   var FLAT_R=78;         // 平面图半径（缩放）
-  var FLAT_PITCH=1.0;    // 平面图俯仰（1=正俯视，越小越侧）
+  var FLAT_PITCH=1.0;    // 平面图俯仰（1=正俯视，0=侧面，-1=从下仰视）
   var R=170, LAYER=115;           // 螺旋半径 / 每层高度
 
   function midiHz(m){ return BASE_HZ * Math.pow(2,(m-69)/12); }
@@ -285,7 +285,7 @@
       if(!dragging) return;
       FLAT_SPIN += (e.clientX-lastX)*0.01;
       FLAT_PITCH += (e.clientY-lastY)*(-0.005);
-      FLAT_PITCH = Math.max(0.25, Math.min(1.0, FLAT_PITCH));
+      FLAT_PITCH = Math.max(-1.0, Math.min(1.0, FLAT_PITCH));   // 负值 = 从下方仰视
       lastX=e.clientX; lastY=e.clientY; drawFlat();
     });
     fb.addEventListener('wheel',function(e){
