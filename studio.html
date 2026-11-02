@@ -160,7 +160,12 @@
       <div class="row" id="combLvlRow" style="display:none"><label>腔体反馈</label>
         <input type="range" id="combLevel" min="0.05" max="0.6" step="0.05" value="0.25"><span class="val" id="combLevelV">0.25</span>
       </div>
-      <div class="row" style="margin-top:10px"><label>余音·低音区</label>
+      <div class="row" style="margin-top:10px"><label>调哪个音源</label>
+        <select id="tailSrc" style="flex:1">
+          <option value="">默认（所有音源）</option>
+        </select>
+      </div>
+      <div class="row"><label>余音·低音区</label>
         <input type="range" id="tailLow" min="0.5" max="6" step="0.1" value="2.2"><span class="val" id="tailLowV">2.2s</span>
       </div>
       <div class="row"><label>余音·中音区</label>
@@ -172,7 +177,7 @@
       <div class="row"><label>余音·淡出</label>
         <input type="range" id="tailFade" min="0.2" max="3" step="0.1" value="1.2"><span class="val" id="tailFadeV">1.2s</span>
       </div>
-      <div class="log" id="tailHint" style="margin-top:4px">低音区能量"堵"，余音留短；高音区留长会更自然。</div>
+      <div class="log" id="tailHint" style="margin-top:4px">低音区能量"堵"，余音留短；高音区留长会更自然。编钟余音长、长笛几乎没有。</div>
       <div class="log" id="styleHint" style="margin-top:6px"></div>
 
       <label class="chk" style="margin-top:14px"><input type="checkbox" id="useArrange"> 使用自定义编排</label>
@@ -862,22 +867,49 @@
     $('combLevelV').textContent = parseFloat(this.value).toFixed(2);
     postStyle({comb: {level: parseFloat(this.value)}});
   };
-  // 余音四个滑块
+  // 余音四个滑块：可以按音源分开调（tailSrc 选「默认」时改全局，选具体音源时改它自己的覆盖值）
+  var TAIL_STATE = {tail: {}, tail_by: {}};
+  function curTailCfg(){
+    var t = $('tailSrc').value;
+    if (!t) return TAIL_STATE.tail || {};
+    return (TAIL_STATE.tail_by && TAIL_STATE.tail_by[t]) || TAIL_STATE.tail || {};
+  }
+  function syncTailSliders(){
+    var c = curTailCfg();
+    if (c.low_keep != null) { $('tailLow').value = c.low_keep; $('tailLowV').textContent = (+c.low_keep).toFixed(1) + 's'; }
+    if (c.mid_keep != null) { $('tailMid').value = c.mid_keep; $('tailMidV').textContent = (+c.mid_keep).toFixed(1) + 's'; }
+    if (c.high_keep != null) { $('tailHigh').value = c.high_keep; $('tailHighV').textContent = (+c.high_keep).toFixed(1) + 's'; }
+    if (c.tail_fade != null) { $('tailFade').value = c.tail_fade; $('tailFadeV').textContent = (+c.tail_fade).toFixed(1) + 's'; }
+    var t = $('tailSrc').value;
+    $('tailHint').textContent = t
+      ? ('正在调「' + t + '」自己的余音；留空会沿用默认值。')
+      : '默认值作用于所有音源；选具体音源可以单独覆盖。编钟余音长、长笛几乎没有。';
+  }
+  function sendTail(field, val){
+    var t = $('tailSrc').value;
+    if (!t) { postStyle({tail: {[field]: val}}); TAIL_STATE.tail[field] = val; }
+    else {
+      postStyle({tail_by: {[t]: {[field]: val}}});
+      TAIL_STATE.tail_by[t] = TAIL_STATE.tail_by[t] || {};
+      TAIL_STATE.tail_by[t][field] = val;
+    }
+  }
+  $('tailSrc').onchange = syncTailSliders;
   $('tailLow').oninput = function(){
     $('tailLowV').textContent = parseFloat(this.value).toFixed(1) + 's';
-    postStyle({tail: {low_keep: parseFloat(this.value)}});
+    sendTail('low_keep', parseFloat(this.value));
   };
   $('tailMid').oninput = function(){
     $('tailMidV').textContent = parseFloat(this.value).toFixed(1) + 's';
-    postStyle({tail: {mid_keep: parseFloat(this.value)}});
+    sendTail('mid_keep', parseFloat(this.value));
   };
   $('tailHigh').oninput = function(){
     $('tailHighV').textContent = parseFloat(this.value).toFixed(1) + 's';
-    postStyle({tail: {high_keep: parseFloat(this.value)}});
+    sendTail('high_keep', parseFloat(this.value));
   };
   $('tailFade').oninput = function(){
     $('tailFadeV').textContent = parseFloat(this.value).toFixed(1) + 's';
-    postStyle({tail: {tail_fade: parseFloat(this.value)}});
+    sendTail('tail_fade', parseFloat(this.value));
   };
   (function initStyle(){
     styleRows();
@@ -886,12 +918,17 @@
       $('beatCents').value = d.beat.cents; $('beatCentsV').textContent = d.beat.cents.toFixed(1) + ' 音分';
       $('combDelay').value = d.comb.delay_ms; $('combDelayV').textContent = d.comb.delay_ms.toFixed(1) + 'ms';
       $('combLevel').value = d.comb.level; $('combLevelV').textContent = d.comb.level.toFixed(2);
-      if (d.tail) {
-        $('tailLow').value = d.tail.low_keep; $('tailLowV').textContent = d.tail.low_keep.toFixed(1) + 's';
-        $('tailMid').value = d.tail.mid_keep; $('tailMidV').textContent = d.tail.mid_keep.toFixed(1) + 's';
-        $('tailHigh').value = d.tail.high_keep; $('tailHighV').textContent = d.tail.high_keep.toFixed(1) + 's';
-        $('tailFade').value = d.tail.tail_fade; $('tailFadeV').textContent = d.tail.tail_fade.toFixed(1) + 's';
-      }
+      TAIL_STATE.tail = d.tail || {};
+      TAIL_STATE.tail_by = d.tail_by || {};
+      // 音源下拉：把已配置的音源列出来
+      var sel = $('tailSrc');
+      var names = Object.keys(TAIL_STATE.tail_by);
+      names.forEach(function(k){
+        var o = document.createElement('option');
+        o.value = k; o.textContent = k;
+        sel.appendChild(o);
+      });
+      syncTailSliders();
       if (d.beat.on && d.comb.on) $('styleSel').value = 'rich';
       else if (d.beat.on) $('styleSel').value = 'alive';
       else if (d.comb.on) $('styleSel').value = 'body';
