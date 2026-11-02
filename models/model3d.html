@@ -38,6 +38,7 @@
   <button id="btnSheng" class="on">相生</button>
   <button id="btnKe" class="on">相克</button>
   <button id="btnFlat">平面对照</button>
+  <button id="btnReset">归位</button>
   <button id="btnOct">增高八度（+1）</button>
   <select id="gongSel3d" style="font-size:12px;padding:5px 8px;border:1px solid #d8cfc0;border-radius:6px;background:#fff;color:#081F5C">
     <option value="0">宫位：F#宫（企业标准）</option>
@@ -89,6 +90,7 @@
   var SHOW_FLAT=false;   // 平面对照
   var FLAT_SPIN=0;       // 平面图旋转角（弧度）
   var FLAT_R=78;         // 平面图半径（缩放）
+  var FLAT_PITCH=1.0;    // 平面图俯仰（1=正俯视，越小越侧）
   var R=170, LAYER=115;           // 螺旋半径 / 每层高度
 
   function midiHz(m){ return BASE_HZ * Math.pow(2,(m-69)/12); }
@@ -234,7 +236,7 @@
     var P=[];
     SHENG.forEach(function(name,i2){
       var ang=(i2/5)*Math.PI*2 - Math.PI/2 + FLAT_SPIN;
-      P.push({x:cx2+R2*Math.cos(ang), y:cy2+R2*Math.sin(ang), name:name});
+      P.push({x:cx2+R2*Math.cos(ang), y:cy2+R2*Math.sin(ang)*FLAT_PITCH, name:name});
     });
     var s='';
     // 相生（五边形边）
@@ -266,17 +268,19 @@
   (function(){
     var fb=document.getElementById('flatBox');
     if(!fb) return;
-    var dragging=false, lastX=0;
+    var dragging=false, lastX=0, lastY=0;
     fb.addEventListener('pointerdown',function(e){
       if(e.target.tagName==='CANVAS'||e.target.tagName==='svg'||e.target.closest&&e.target.closest('svg')){
-        dragging=true; lastX=e.clientX; fb.setPointerCapture(e.pointerId);
+        dragging=true; lastX=e.clientX; lastY=e.clientY; fb.setPointerCapture(e.pointerId);
       }
     });
     fb.addEventListener('pointerup',function(){ dragging=false; });
     fb.addEventListener('pointermove',function(e){
       if(!dragging) return;
       FLAT_SPIN += (e.clientX-lastX)*0.01;
-      lastX=e.clientX; drawFlat();
+      FLAT_PITCH += (e.clientY-lastY)*(-0.005);
+      FLAT_PITCH = Math.max(0.25, Math.min(1.0, FLAT_PITCH));
+      lastX=e.clientX; lastY=e.clientY; drawFlat();
     });
     fb.addEventListener('wheel',function(e){
       e.preventDefault();
@@ -357,6 +361,12 @@
     var fb=document.getElementById('flatBox');
     fb.style.display = SHOW_FLAT ? '' : 'none';
     if(SHOW_FLAT) drawFlat();
+  };
+  document.getElementById('btnReset').onclick=function(){
+    yaw=0.55; pitch=1.30; zoom=1.05; autoSpin=false;
+    FLAT_SPIN=0; FLAT_R=78; FLAT_PITCH=1.0;
+    document.getElementById('btnSpin').className='';
+    draw(); drawFlat();
   };
   document.getElementById('btnOct').onclick=function(){
     octaves = octaves>=4?2:octaves+1;
